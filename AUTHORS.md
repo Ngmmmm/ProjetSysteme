@@ -1,0 +1,2 @@
+- NOM Prénom - numéro étudiant - pseudo(s) apparaissant dans les commits
+- GREGOIRE-MELLIER Noa - 22308594 - GREGOIRE MELLIER noa @gregoirn

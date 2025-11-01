@@ -1,3 +1,3 @@
-- NOM Prénom - numéro étudiant - pseudo(s) apparaissant dans les commits
+- POTIER Nathan - 22305976 - POTIER nathan @potier
 - GREGOIRE-MELLIER Noa - 22308594 - GREGOIRE MELLIER noa @gregoirn
 - RAMANATHAN Jonas - 22308381 - Ramanathan-Linux @ramanath

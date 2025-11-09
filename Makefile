@@ -1,29 +1,38 @@
+
+# --- REPERTOIRES ---
 SRC_DIR = src
 BIN_DIR = bin
-TEST_DIR = /tmp/$(USER)/erraid
 
-all: $(BIN_DIR)/erraid #$(BIN_DIR)/tadmor
+# --- SOURCES ---
+ERRAID_SRCS = $(SRC_DIR)/erraid.c $(SRC_DIR)/utils.c
+TADMOR_SRCS = $(SRC_DIR)/tadmor.c $(SRC_DIR)/utils.c
 
+
+# --- REGLES ---
+
+# Cible par défaut: compile les deux exécutables
+all: $(BIN_DIR)/erraid $(BIN_DIR)/tadmor
+
+# Règle pour créer le répertoire 'bin' s'il n'existe pas
+# Le '|' dit à make: "crée 'bin' avant, mais ne recompile pas si seul 'bin' change"
 $(BIN_DIR):
 	mkdir -p $(BIN_DIR)
 
-$(BIN_DIR)/erraid: $(SRC_DIR)/erraid.c | $(BIN_DIR)
-	gcc -Wall -Wextra -o $@ $<
+# Règle pour erraid:
+# Dépend des sources ET du répertoire 'bin'
+$(BIN_DIR)/erraid: $(ERRAID_SRCS) | $(BIN_DIR)
+	gcc -o $@ $(ERRAID_SRCS)
 
-$(BIN_DIR)/tadmor: $(SRC_DIR)/tadmor.c | $(BIN_DIR)
-	gcc -Wall -Wextra -o $@ $<
+# Règle pour tadmor:
+# Dépend des sources ET du répertoire 'bin'
+$(BIN_DIR)/tadmor: $(TADMOR_SRCS) | $(BIN_DIR)
+	gcc -o $@ $(TADMOR_SRCS)
 
-# Nettoyage complet
+# Nettoyage complet: efface le répertoire 'bin'
 distclean:
 	rm -rf $(BIN_DIR)
 
-# --- SECTION TEST ---
-# Crée un environnement temporaire et exécute erraid
-test: all
-#	@echo "==> Création de l'environnement de test dans $(TEST_DIR)"
-#	@mkdir -p $(TEST_DIR)/tasks/001/cmd
-#	@echo "Tâche factice créée : $(TEST_DIR)/tasks/001"
-#	@echo "==> Lancement du démon erraid"
-	@$(BIN_DIR)/erraid $(TEST_DIR)
-#	@echo "==> Test terminé"
-
+# Test: exécute erraid (après l'avoir compilé)
+test: $(BIN_DIR)/erraid
+	@echo "==> Lancement du démon erraid"
+	@$(BIN_DIR)/erraid

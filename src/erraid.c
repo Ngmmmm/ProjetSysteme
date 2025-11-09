@@ -5,7 +5,7 @@
 #include <unistd.h>    // write, STDOUT_FILENO, STDERR_FILENO, getuid
 #include <errno.h>     // errno
 #include <stdio.h>     // snprintf 
-#include "utils.h" 
+#include "../include/utils.h" 
 
 #define MAX_PATH_LEN 1024
 

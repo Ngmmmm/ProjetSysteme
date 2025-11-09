@@ -43,7 +43,7 @@ int is_directory(const char *path) {
  * Parcourt le répertoire /tmp/$USER/erraid/tasks/
  * et affiche les identifiants des tâches (répertoires).
  */
-void load_all_tasks(void) {
+void find_all_tasks(void) {
     char base_dir[MAX_PATH_LEN];
     char message_buffer[MAX_PATH_LEN * 2];
     int len;
@@ -98,6 +98,6 @@ void load_all_tasks(void) {
 
 int main(void) {
     write_line("=== Démon erraid – Étape 1 (parcours des tâches) ===");
-    load_all_tasks();
+    find_all_tasks();
     return 0;
 }

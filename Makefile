@@ -14,4 +14,3 @@ $(BIN_DIR)/tadmor: $(SRC_DIR)/tadmor.c | $(BIN_DIR)
 
 distclean:
 	rm -rf $(BIN_DIR)
-.

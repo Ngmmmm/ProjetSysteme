@@ -10,7 +10,6 @@
 
 /**
  * Écrit une chaîne suivie d'un retour à la ligne sur la sortie standard (stdout).
- * Remplace l'utilisation simple de printf(..., "\n").
  */
 void write_line(const char *line) {
     write(STDOUT_FILENO, line, strlen(line));
@@ -18,7 +17,7 @@ void write_line(const char *line) {
 }
 
 /**
- * Écrit un message d'erreur préfixé sur la sortie d'erreur standard (stderr).
+ * Écrit un message d'erreur sur la sortie d'erreur standard (stderr).
  * Récupère le message d'erreur système via strerror(errno).
  */
 void write_error(const char *prefix) {

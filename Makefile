@@ -1,12 +1,17 @@
 SRC_DIR = src
+BIN_DIR = bin
 
-all: erraid tadmor
+all: $(BIN_DIR)/erraid $(BIN_DIR)/tadmor
 
-erraid: $(SRC_DIR)/erraid.c
-	gcc -o erraid $(SRC_DIR)/erraid.c
+$(BIN_DIR):
+	mkdir -p $(BIN_DIR)
 
-tadmor: $(SRC_DIR)/tadmor.c
-	gcc -o tadmor $(SRC_DIR)/tadmor.c
+$(BIN_DIR)/erraid: $(SRC_DIR)/erraid.c | $(BIN_DIR)
+	gcc -Wall -Wextra -o $@ $<
+
+$(BIN_DIR)/tadmor: $(SRC_DIR)/tadmor.c | $(BIN_DIR)
+	gcc -Wall -Wextra -o $@ $<
 
 distclean:
-	rm -f erraid tadmor
+	rm -rf $(BIN_DIR)
+.

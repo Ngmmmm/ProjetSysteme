@@ -95,9 +95,7 @@ void load_all_tasks(void) {
     closedir(dirp);
 }
 
-/**
- * Point d'entrée du démon.
- */
+
 int main(void) {
     write_line("=== Démon erraid – Étape 1 (parcours des tâches) ===");
     load_all_tasks();

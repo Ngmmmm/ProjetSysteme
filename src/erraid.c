@@ -5,28 +5,10 @@
 #include <unistd.h>    // write, STDOUT_FILENO, STDERR_FILENO, getuid
 #include <errno.h>     // errno
 #include <stdio.h>     // snprintf 
+#include "utils.h" 
 
 #define MAX_PATH_LEN 1024
 
-/**
- * Écrit une chaîne suivie d'un retour à la ligne sur la sortie standard (stdout).
- */
-void write_line(const char *line) {
-    write(STDOUT_FILENO, line, strlen(line));
-    write(STDOUT_FILENO, "\n", 1);
-}
-
-/**
- * Écrit un message d'erreur sur la sortie d'erreur standard (stderr).
- * Récupère le message d'erreur système via strerror(errno).
- */
-void write_error(const char *prefix) {
-    const char *err_msg = strerror(errno);
-    write(STDERR_FILENO, prefix, strlen(prefix));
-    write(STDERR_FILENO, ": ", 2);
-    write(STDERR_FILENO, err_msg, strlen(err_msg));
-    write(STDERR_FILENO, "\n", 1);
-}
 
 /**
  * Vérifie si le chemin donné correspond à un répertoire.

@@ -5,6 +5,8 @@
 #include <unistd.h>    // write, STDOUT_FILENO, STDERR_FILENO, getuid
 #include <errno.h>     // errno
 #include <stdio.h>     // snprintf 
+#include <fcntl.h>     // open()
+#include <stdint.h>    // uint64_t
 #include "../include/utils.h" 
 
 #define MAX_PATH_LEN 1024
@@ -47,35 +49,52 @@ void find_all_tasks(void) {
         return;
     }
 
-    // Affiche le répertoire des tâches
-    len = snprintf(message_buffer, sizeof(message_buffer), "Répertoire des tâches : %s", base_dir);
     write_line(message_buffer);
 
     struct dirent *entry;
 
     while ((entry = readdir(dirp)) != NULL) {
-        // Ignore "." et ".."
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
             continue;
 
-        char full_path[MAX_PATH_LEN];
-        len = snprintf(full_path, sizeof(full_path), "%s/%s", base_dir, entry->d_name);
-        
-        if (len >= sizeof(full_path)) {
-            // Gère le cas où le chemin complet est trop long
-            len = snprintf(message_buffer, sizeof(message_buffer), "Erreur: Chemin trop long pour %s", entry->d_name);
+        char task_path[MAX_PATH_LEN];
+        len = snprintf(task_path, sizeof(task_path), "%s/%s", base_dir, entry->d_name);
+        if (len >= sizeof(task_path)) {
+            snprintf(message_buffer, sizeof(message_buffer), "Erreur: Chemin trop long pour %s", entry->d_name);
             write_line(message_buffer);
             continue;
         }
 
-        if (is_directory(full_path)) {
-            len = snprintf(message_buffer, sizeof(message_buffer), "Tâche trouvée : %s", entry->d_name);
+        if (is_directory(task_path)) {
+            snprintf(message_buffer, sizeof(message_buffer), "Tâche trouvée : %s", entry->d_name);
+            write_line(message_buffer);
+
+            // === Lecture du fichier timing ===
+            char timing_path[MAX_PATH_LEN];
+            snprintf(timing_path, sizeof(timing_path), "%s/timing", task_path);
+
+            int fd = open(timing_path, O_RDONLY);
+            if (fd == -1) {
+                write_error("Impossible d'ouvrir le fichier timing");
+                continue;
+            }
+
+            uint64_t timing_value;
+            if (read_u64_be(fd, &timing_value) == -1) {
+                write_error("Erreur de lecture du timing");
+                close(fd);
+                continue;
+            }
+            close(fd);
+
+            snprintf(message_buffer, sizeof(message_buffer), "Timing : %lu", timing_value);
             write_line(message_buffer);
         }
     }
 
     closedir(dirp);
 }
+
 
 
 int main(void) {

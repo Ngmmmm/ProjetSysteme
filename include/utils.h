@@ -2,8 +2,15 @@
 
 #include <stdint.h> // Pour uint16_t, uint32_t, uint64_t
 
-// Fonctions d'écriture 
+/**
+ * Écrit une chaîne suivie d'un retour à la ligne sur la sortie standard (stdout).
+ */
 void write_line(const char *line);
+
+/**
+ * Écrit un message d'erreur sur la sortie d'erreur standard (stderr).
+ * Récupère le message d'erreur système via strerror(errno).
+ */
 void write_error(const char *prefix);
 
 // Nouvelles fonctions de lecture (big-endian)

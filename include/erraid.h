@@ -2,6 +2,9 @@
 
 #include <stdlib.h>    // getenv
 #include <unistd.h>    // write, STDOUT_FILENO, STDERR_FILENO
+#include <stdint.h>
+
+
 
 #define MAX_PATH_LEN 1024
 
@@ -15,3 +18,28 @@ int is_directory(const char *path);
  * et affiche les identifiants des tâches (répertoires).
  */
 void find_all_tasks(void);
+
+
+struct timing {
+    uint64_t minutes;
+    uint32_t hours;
+    uint8_t daysofweek;
+};
+
+struct command {
+    char type[3]; // "SI" ou "SQ"
+
+    // --- Pour le type "SI" ---
+    int argc;     
+    char **argv;  
+
+    // --- Pour le type "SQ" ---
+    struct command *subcommands; 
+    size_t subcount;             
+};
+
+struct task {
+    uint64_t taskid;
+    struct timing timing;
+    struct command command;
+};

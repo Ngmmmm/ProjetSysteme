@@ -44,6 +44,49 @@ void free_command(struct command *cmd) {
 }
 
 
+char* read_string_from_fd(int fd) {
+    uint32_t str_len;
+
+    if (read_u32_be(fd, &str_len) == -1) {
+        write_error("impossible de lire la longueur");
+        return NULL;
+    }
+
+    
+    if (str_len == 0) {
+        char *empty_str = malloc(1);
+        if (empty_str) empty_str[0] = '\0';
+        return empty_str;
+    }
+
+    
+    char *buffer = malloc(str_len + 1);
+    if (!buffer) {
+        write_error("malloc a échoué");
+        return NULL;
+    }
+
+    
+    ssize_t bytes_read = read(fd, buffer, str_len);
+    if (bytes_read == -1) {
+        write_error("read a échoué");
+        free(buffer);
+        return NULL;
+    }
+    if (bytes_read != str_len) {
+        write_line("fin de fichier inattendue en lisant la chaîne");
+        free(buffer);
+        return NULL;
+    }
+
+    
+    buffer[str_len] = '\0';
+    return buffer;
+}
+
+
+
+
 
 
 /**

@@ -7,6 +7,8 @@
 
 
 #define MAX_PATH_LEN 1024
+#define FILE_TYPE_SI 0x5349 // 'SI' 
+#define FILE_TYPE_SQ 0x5351 // 'SQ' 
 
 /**
  * Vérifie si le chemin donné correspond à un répertoire.

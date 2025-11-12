@@ -1,9 +1,18 @@
+#include "../include/erraid.h"
 #include "../include/utils.h" 
-#include <unistd.h>    // Pour read(), write(), STDOUT_FILENO, ...
-#include <endian.h>    // Pour be16toh, be32toh, be64toh
-#include <errno.h>     // Pour errno
-#include <string.h>    // Pour strlen(), strerror()
-#include <stdio.h>     // Pour snprintf()
+#include <stdlib.h>     // Pour malloc, free, exit, atoi
+#include <string.h>     // Pour strlen, memcpy, strcpy, memset
+#include <unistd.h>     // Pour read, close
+#include <fcntl.h>      // Pour open, O_RDONLY
+#include <dirent.h>     // Pour opendir, readdir, closedir
+#include <ctype.h>      // Pour isdigit
+#include <errno.h>      // Pour errno
+
+// --- Constantes pour les types de commande ---
+// 0x5349 est 'S' 'I' en ASCII
+#define TYPE_SI 0x5349 
+// 0x5351 est 'S' 'Q' en ASCII
+#define TYPE_SQ 0x5351
 
 void write_line(const char *line) {
     write(STDOUT_FILENO, line, strlen(line));
@@ -52,5 +61,15 @@ int read_u64_be(int fd, uint64_t *val) {
         return -1;
     }
     *val = be64toh(net_val);
+    return 0;
+}
+
+int read_u8(int fd, uint8_t *val) {
+    ssize_t bytes_read = read(fd, val, sizeof(*val));
+    if (bytes_read == -1) return -1;
+    if (bytes_read != sizeof(*val)) {
+        errno = EBADMSG;
+        return -1;
+    }
     return 0;
 }

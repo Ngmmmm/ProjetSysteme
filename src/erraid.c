@@ -1,15 +1,13 @@
-#include <stdlib.h>    // getenv, exit
-#include <dirent.h>    // opendir, readdir, closedir
-#include <string.h>    // strcmp, strlen, strerror
-#include <sys/stat.h>  // stat, S_ISDIR
-#include <unistd.h>    // write, STDOUT_FILENO, STDERR_FILENO, getuid
-#include <errno.h>     // errno
-#include <stdio.h>     // snprintf 
-#include <fcntl.h>     // open()
-#include <stdint.h>    // uint64_t
+#include "../include/erraid.h"
 #include "../include/utils.h" 
+#include <stdlib.h>  
+#include <dirent.h>   
+#include <string.h>  
+#include <sys/stat.h> 
+#include <unistd.h>    
+#include <errno.h>     
+#include <stdio.h>     
 
-#define MAX_PATH_LEN 1024
 
 
 /**
@@ -102,7 +100,7 @@ void find_all_tasks(void) {
 
 
 int main(void) {
-    write_line("=== Démon erraid – Étape 1 (parcours des tâches) ===");
+    write_line("=== Démon erraid - Étape 1 (parcours des tâches) ===");
     find_all_tasks();
     return 0;
 }

@@ -22,6 +22,30 @@ int is_directory(const char *path) {
     return S_ISDIR(st.st_mode);
 }
 
+
+void free_command(struct command *cmd) {
+    if (cmd == NULL) return;
+
+    if (strcmp(cmd->type, "SI") == 0) {
+        for (int i = 0; i < cmd->argc; i++) {
+            free(cmd->argv[i]);
+        }
+        free(cmd->argv);
+
+    } else if (strcmp(cmd->type, "SQ") == 0) {
+        for (size_t i = 0; i < cmd->subcount; i++) {
+            free_command(&cmd->subcommands[i]);
+        }
+        free(cmd->subcommands);
+    }
+    
+    
+    free(cmd);
+}
+
+
+
+
 /**
  * Parcourt le répertoire /tmp/$USER/erraid/tasks/
  * et affiche les identifiants des tâches (répertoires).

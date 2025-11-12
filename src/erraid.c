@@ -85,7 +85,105 @@ char* read_string_from_fd(int fd) {
 }
 
 
+struct command *parse_command(const char *cmd_path) {
+    char file_path[MAX_PATH_LEN];
+    int fd = -1;
 
+   
+    struct command *cmd = malloc(sizeof(struct command));
+    if (!cmd) {
+        write_error("malloc a échoué pour cmd");
+        return NULL;
+    }
+
+    memset(cmd, 0, sizeof(struct command));
+
+
+    snprintf(file_path, MAX_PATH_LEN, "%s/type", cmd_path);
+    fd = open(file_path, O_RDONLY);
+    if (fd == -1) {
+        write_error("impossible d'ouvrir le fichier 'type'");
+        free(cmd);
+        return NULL;
+    }
+
+    uint16_t type_from_file;
+    if (read_u16_be(fd, &type_from_file) == -1) {
+        write_error("impossible de lire le 'type'");
+        close(fd); free(cmd); 
+        return NULL;
+    }
+    close(fd);
+
+    
+    if (type_from_file == FILE_TYPE_SI) {
+        strcpy(cmd->type, "SI");
+    } else if (type_from_file == FILE_TYPE_SQ) {
+        strcpy(cmd->type, "SQ");
+    } else {
+        char msg_buf[100];
+        snprintf(msg_buf, 100, "type de commande inconnu: 0x%X", type_from_file);
+        write_line(msg_buf);
+        free(cmd); 
+        return NULL;
+    }
+
+
+    
+    if (strcmp(cmd->type, "SI") == 0) {
+        snprintf(file_path, MAX_PATH_LEN, "%s/argv", cmd_path);
+        fd = open(file_path, O_RDONLY);
+        if (fd == -1) {
+            write_error("parse_command: impossible d'ouvrir 'argv'");
+            free(cmd); 
+            return NULL;
+        }
+
+        uint32_t argc_from_file;
+        if (read_u32_be(fd, &argc_from_file) == -1) {
+            write_error("impossible de lire ARGC");
+            close(fd); free(cmd); 
+            return NULL;
+        }
+        cmd->argc = (int)argc_from_file;
+        
+        if (cmd->argc < 1) {
+             write_line("ARGC < 1 dans un fichier argv");
+             close(fd); free(cmd); 
+             return NULL;
+        }
+
+        
+        cmd->argv = malloc(sizeof(char *) * (cmd->argc + 1));
+        if (!cmd->argv) {
+            write_error("malloc a échoué pour argv");
+            close(fd); free(cmd); 
+            return NULL;
+        }
+
+        
+        for (int i = 0; i < cmd->argc; i++) {
+            cmd->argv[i] = read_string_from_fd(fd);
+            if (cmd->argv[i] == NULL) {
+                for (int j = 0; j < i; j++) free(cmd->argv[j]);
+                free(cmd->argv);
+                close(fd); free(cmd);
+                return NULL;
+            }
+        }
+        
+        
+        cmd->argv[cmd->argc] = NULL;
+        close(fd);
+
+
+    } else if (strcmp(cmd->type, "SQ") == 0) {
+
+        //A finir
+    }
+
+    return cmd;
+}
 
 
 
@@ -102,7 +200,6 @@ void find_all_tasks(void) {
     if (!user) user = "unknown";
 
     // Construit le chemin : /tmp/$USER/erraid/tasks
-    // (Utilisation de snprintf car il n'écrit pas dans un FILE*)
     len = snprintf(base_dir, sizeof(base_dir), "/tmp/%s/erraid/tasks", user);
     if (len >= sizeof(base_dir)) {
         write_line("Erreur: Le chemin du répertoire de base est trop long.");
@@ -164,6 +261,8 @@ void find_all_tasks(void) {
 
     closedir(dirp);
 }
+
+
 
 
 

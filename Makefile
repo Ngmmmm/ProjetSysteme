@@ -1,29 +1,46 @@
+
+# --- REPERTOIRES ---
 SRC_DIR = src
 BIN_DIR = bin
+
+# --- SOURCES ---
+ERRAID_SRCS = $(SRC_DIR)/erraid.c $(SRC_DIR)/utils.c
+TADMOR_SRCS = $(SRC_DIR)/tadmor.c $(SRC_DIR)/utils.c
 TEST_DIR = /tmp/$(USER)/erraid
 
-all: $(BIN_DIR)/erraid #$(BIN_DIR)/tadmor
 
+# --- REGLES ---
+
+# Cible par défaut: compile les deux exécutables
+all: $(BIN_DIR)/erraid $(BIN_DIR)/tadmor
+
+# Règle pour créer le répertoire 'bin' s'il n'existe pas
 $(BIN_DIR):
 	mkdir -p $(BIN_DIR)
 
-$(BIN_DIR)/erraid: $(SRC_DIR)/erraid.c | $(BIN_DIR)
-	gcc -Wall -Wextra -o $@ $<
+# Règle pour erraid:
+# Dépend des sources et du répertoire 'bin'
+$(BIN_DIR)/erraid: $(ERRAID_SRCS) | $(BIN_DIR)
+	gcc -o $@ $(ERRAID_SRCS)
 
-$(BIN_DIR)/tadmor: $(SRC_DIR)/tadmor.c | $(BIN_DIR)
-	gcc -Wall -Wextra -o $@ $<
+# Règle pour tadmor:
+# Dépend des sources et du répertoire 'bin'
+$(BIN_DIR)/tadmor: $(TADMOR_SRCS) | $(BIN_DIR)
+	gcc -o $@ $(TADMOR_SRCS)
 
-# Nettoyage complet
+# Nettoyage complet: efface le répertoire 'bin'
 distclean:
 	rm -rf $(BIN_DIR)
 
-# --- SECTION TEST ---
-# Crée un environnement temporaire et exécute erraid
-test: all
-#	@echo "==> Création de l'environnement de test dans $(TEST_DIR)"
-#	@mkdir -p $(TEST_DIR)/tasks/001/cmd
-#	@echo "Tâche factice créée : $(TEST_DIR)/tasks/001"
-#	@echo "==> Lancement du démon erraid"
+# Test: exécute erraid (après l'avoir compilé)
+test: $(BIN_DIR)/erraid
+	@echo "==> Création de l'environnement de test dans $(TEST_DIR)"
+	@mkdir -p $(TEST_DIR)
+	@echo "==> Copie des exemples d’arborescences..."
+	@cp -r consignes/exemples-arborescences/exemple-arborescence-1/tmp-username-erraid/* $(TEST_DIR) 
+	@cp -r consignes/exemples-arborescences/exemple-arborescence-2/tmp-username-erraid/* $(TEST_DIR) 
+	@cp -r consignes/exemples-arborescences/exemple-arborescence-3/tmp-username-erraid/* $(TEST_DIR) 
+	@cp -r consignes/exemples-arborescences/exemple-arborescence-4/tmp-username-erraid/* $(TEST_DIR) 
+	@echo "==> Exécution du démon erraid sur $(TEST_DIR)"
 	@$(BIN_DIR)/erraid $(TEST_DIR)
-#	@echo "==> Test terminé"
-
+	@echo "==> Test terminé."

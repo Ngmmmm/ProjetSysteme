@@ -49,16 +49,20 @@ void find_all_tasks(void) {
         return;
     }
 
+    // Affiche le répertoire des tâches
+    len = snprintf(message_buffer, sizeof(message_buffer), "Répertoire des tâches : %s", base_dir);
     write_line(message_buffer);
 
     struct dirent *entry;
 
     while ((entry = readdir(dirp)) != NULL) {
+        // Ignore "." et ".."
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
             continue;
 
         char task_path[MAX_PATH_LEN];
         len = snprintf(task_path, sizeof(task_path), "%s/%s", base_dir, entry->d_name);
+        
         if (len >= sizeof(task_path)) {
             snprintf(message_buffer, sizeof(message_buffer), "Erreur: Chemin trop long pour %s", entry->d_name);
             write_line(message_buffer);

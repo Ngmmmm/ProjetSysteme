@@ -8,6 +8,7 @@
 #include <errno.h>     
 #include <stdio.h>    
 #include <fcntl.h> 
+#include <stddef.h>
 
 
 
@@ -20,6 +21,23 @@ int is_directory(const char *path) {
         return 0;
     }
     return S_ISDIR(st.st_mode);
+}
+
+int read_timing_struct(int fd, struct timing *timing_out) {
+    
+    //MINUTES
+    if (read_u64_be(fd, &timing_out->minutes) == -1) {
+        return -1;
+    }
+    //HOURS 
+    if (read_u32_be(fd, &timing_out->hours) == -1) {
+        return -1;
+    }
+    //DAYSOFWEEK 
+    if (read_u8(fd, &timing_out->daysofweek) == -1) {
+        return -1;
+    }
+    return 0;
 }
 
 /**
@@ -82,16 +100,14 @@ void find_all_tasks(void) {
                 continue;
             }
 
-            uint64_t timing_value;
-            if (read_u64_be(fd, &timing_value) == -1) {
-                write_error("Erreur de lecture du timing");
+            struct timing task_timing;
+
+            if (read_timing_struct(fd, &task_timing) == -1) {
+                write_error("  - Erreur de lecture du fichier timing");
                 close(fd);
                 continue;
             }
-            close(fd);
-
-            snprintf(message_buffer, sizeof(message_buffer), "Timing : %lu", timing_value);
-            write_line(message_buffer);
+            close(fd); 
         }
     }
 

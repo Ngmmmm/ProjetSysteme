@@ -256,8 +256,7 @@ struct command *parse_command(const char *cmd_path) {
 
 
 /**
- * Parcourt le répertoire /tmp/$USER/erraid/tasks/
- * et affiche les identifiants des tâches (répertoires).
+ * Parcourt le répertoire /tmp/$USER/erraid/tasks et affiche les tâches trouvées.
  */
 void find_all_tasks(void) {
     char base_dir[MAX_PATH_LEN];

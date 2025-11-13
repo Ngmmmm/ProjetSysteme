@@ -179,7 +179,75 @@ struct command *parse_command(const char *cmd_path) {
 
     } else if (strcmp(cmd->type, "SQ") == 0) {
 
-        //A finir
+        DIR *d = opendir(cmd_path);
+        if (!d) {
+            write_error("impossible d'ouvrir le répertoire de séquence");
+            free(cmd);
+            return NULL;
+        }
+
+        struct dirent *entry;
+        size_t count = 0;
+        
+        while ((entry = readdir(d)) != NULL) {
+            //AJOUTE 1 A COUNT POUR CHAQUE SOUS REPERTOIRE
+            if (isdigit(entry->d_name[0])) {
+                count++;
+            }
+        }
+        
+        cmd->subcount = count;
+        
+        if (cmd->subcount == 0) {
+            //SI VIDE ALORS RIEN
+            cmd->subcommands = NULL; 
+            closedir(d);
+        } else {
+
+            cmd->subcommands = malloc(cmd->subcount * sizeof(struct command));
+            if (!cmd->subcommands) {
+                write_error("malloc a échoué pour subcommands");
+                closedir(d);
+                free(cmd);
+                return NULL;
+            }
+
+            memset(cmd->subcommands, 0, cmd->subcount * sizeof(struct command));
+            
+            rewinddir(d);
+            //ON PARCOURS LES REPERTOIRES
+            while ((entry = readdir(d)) != NULL) {
+                if (isdigit(entry->d_name[0])) { // ON VERIFIE QUE LE NOM DU REPERTOIRE EST UN NOMBRE (et pas un .. par ex)
+                    int index = atoi(entry->d_name);// TRANSFORME LA CHAINE DE CARACTERE EN NOMBRE -> "2" -> int 2
+                    
+                    if (index < 0 || (size_t)index >= cmd->subcount) { // ON VERIFIE QUIL EST VALIDE (> 0 et pas hors limite)
+                        char msg_buf[50];
+                        snprintf(msg_buf, 50, "Index de sous-commande invalide");
+                        write_line(msg_buf);
+                        continue;
+                    }
+                    
+                    snprintf(file_path, MAX_PATH_LEN, "%s/%s", cmd_path, entry->d_name); //CONSTRUIT LE CHEMIN COMPLET VERS LE SOUS REPERTOIRE ex tasks/4/cmd/0
+                    
+                    struct command *temp_cmd = parse_command(file_path);// APPEL RECURSIF POUR CE MEME REPERTOIRE
+                    
+                    if (temp_cmd == NULL) {
+                        write_error("Échec de l'appel recursif");
+                        
+                        free(cmd->subcommands);
+                        free(cmd);
+                        closedir(d);
+                        return NULL;
+                    }
+                
+                    cmd->subcommands[index] = *temp_cmd; //COPIE LE RESULTAT DANS LA BONNE CASE DU TABLEAU
+
+                    free(temp_cmd);
+                }
+            }
+            closedir(d);
+        }
+
     }
 
     return cmd;
@@ -246,16 +314,27 @@ void find_all_tasks(void) {
                 continue;
             }
 
-            uint64_t timing_value;
-            if (read_u64_be(fd, &timing_value) == -1) {
-                write_error("Erreur de lecture du timing");
-                close(fd);
-                continue;
+            struct timing task_timing; 
+
+            if (read_u64_be(fd, &task_timing.minutes) == -1) {
+                 write_error("Erreur lecture timing (minutes)");
+                 close(fd);
+                 continue;
+            }
+            if (read_u32_be(fd, &task_timing.hours) == -1) {
+                 write_error("Erreur lecture timing (hours)");
+                 close(fd);
+                 continue;
+            }
+            if (read_u8(fd, &task_timing.daysofweek) == -1) { 
+                 write_error("Erreur lecture timing (days)");
+                 close(fd);
+                 continue;
             }
             close(fd);
 
-            snprintf(message_buffer, sizeof(message_buffer), "Timing : %lu", timing_value);
-            write_line(message_buffer);
+            //snprintf(message_buffer, sizeof(message_buffer), "Timing : %lu", timing_value);
+            //write_line(message_buffer);
         }
     }
 

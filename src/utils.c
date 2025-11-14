@@ -1,10 +1,21 @@
+#include "../include/erraid.h"
 #include "../include/utils.h" 
-#include "../include/erraid.h" 
-#include <unistd.h>    // Pour read(), write(), STDOUT_FILENO, ...
-#include <endian.h>    // Pour be16toh, be32toh, be64toh
-#include <errno.h>     // Pour errno
-#include <string.h>    // Pour strlen(), strerror()
-#include <stdio.h>     // Pour snprintf()
+#include <unistd.h>    
+#include <endian.h>   
+#include <string.h>    
+#include <stdio.h>     
+#include <stdlib.h>    
+#include <fcntl.h>     
+#include <dirent.h>     
+#include <ctype.h>      
+#include <errno.h>      
+
+// --- Constantes pour les types de commande ---
+// 0x5349 est 'S' 'I' en ASCII
+#define TYPE_SI 0x5349 
+// 0x5351 est 'S' 'Q' en ASCII
+#define TYPE_SQ 0x5351
+
 
 void write_line(const char *line) {
     write(STDOUT_FILENO, line, strlen(line));
@@ -57,6 +68,7 @@ int read_u64_be(int fd, uint64_t *val) {
 }
 
 
+
 /**
  * Affiche récursivement le contenu d'une structure command.
  * @param cmd Pointeur vers la commande à afficher.
@@ -97,3 +109,14 @@ void print_command(struct command *cmd, int indent) {
         write_line(buffer);
     }
 }
+
+int read_u8(int fd, uint8_t *val) {
+    ssize_t bytes_read = read(fd, val, sizeof(*val));
+    if (bytes_read == -1) return -1;
+    if (bytes_read != sizeof(*val)) {
+        errno = EBADMSG;
+        return -1;
+    }
+    return 0;
+}
+

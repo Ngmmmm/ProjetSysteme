@@ -9,6 +9,8 @@
 #include <stdio.h>    
 #include <fcntl.h> 
 #include <ctype.h>
+#include <stddef.h>
+
 
 
 
@@ -22,6 +24,7 @@ int is_directory(const char *path) {
     }
     return S_ISDIR(st.st_mode);
 }
+
 
 
 /**
@@ -418,6 +421,7 @@ struct task *load_all_tasks(size_t *task_count) {
 
             
             count++;
+
         }
     }
     closedir(dirp);

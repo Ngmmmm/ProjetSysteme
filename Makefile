@@ -33,7 +33,7 @@ distclean:
 	rm -rf $(BIN_DIR)
 
 # Test: exécute erraid (après l'avoir compilé)
-test: $(BIN_DIR)/erraid
+test: distclean $(BIN_DIR)/erraid
 	@echo "==> Création de l'environnement de test dans $(TEST_DIR)"
 	@mkdir -p $(TEST_DIR)
 	@echo "==> Copie des exemples d’arborescences..."

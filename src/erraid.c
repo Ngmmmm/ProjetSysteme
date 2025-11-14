@@ -10,7 +10,7 @@
 #include <fcntl.h> 
 #include <ctype.h>
 #include <stddef.h>
-
+#include <sys/wait.h>
 
 
 
@@ -439,10 +439,49 @@ struct task *load_all_tasks(size_t *task_count) {
     return task_array;
 }
 
+/**
+ * Fonction récursive principale pour exécuter n'importe quel type de commande.
+ * La sortie et l'erreur s'affichent sur le terminal.
+ * @param cmd La structure de commande (SI ou SQ).
+ * @return Le code de sortie final, ou -1 en cas d'erreur.
+ */
+int execute_command_in_terminal(struct command *cmd) {
+    if (cmd == NULL) {
+        return -1;
+    }
+
+    if (strcmp(cmd->type, "SI") == 0) {
+        return execute_simple_command_in_terminal(cmd);
+    } 
+    
+    if (strcmp(cmd->type, "SQ") == 0) {
+        return execute_sequence_command_in_terminal(cmd);
+    }
+
+    write_line("Type de commande inconnu pour l'exécution.");
+    return -1;
+}
+
+int execute_sequence_command_in_terminal(struct command *cmd) {
+    int last_exit_code = 0;
+    
+    if (cmd == NULL || cmd->subcount == 0) {
+        return 0;
+    }
+
+    // Boucle sur toutes les sous-commandes
+    for (size_t i = 0; i < cmd->subcount; i++) {
+        
+        // Exécution de la sous-commande (peut être SI ou une autre SQ)
+        last_exit_code = execute_command_in_terminal(&cmd->subcommands[i]);
+
+        if (last_exit_code != 0) break;
+    }
+    return last_exit_code;
+}
 
 /**
  * Exécute une commande simple (SI) et attend son achèvement.
- * La sortie et l'erreur s'affichent sur le terminal.
  * @param cmd La structure de commande à exécuter (doit être de type "SI").
  * @return Le code de sortie de la commande 0, ou -1 en cas d'échec de fork/exec.
  */
@@ -508,33 +547,22 @@ int main(void) {
         print_command(all_tasks[i].command, 1);
     }
     write_line("\n"); 
+
     // EXÉCUTION DES COMMANDES
     write_line("--- PHASE 2 : EXÉCUTION DES COMMANDES (SI) ---");
-    
-    // MARQUEUR DE DÉBUT DES RÉSULTATS
     write_line("Resultat :");
 
     for (size_t i = 0; i < task_count; i++) {
         
         struct command *cmd = all_tasks[i].command;
 
-        if (strcmp(cmd->type, "SI") == 0) {
-            
-            // Exécution réelle. La sortie s'affiche directement ici.
-            // Le code de retour est stocké mais non affiché individuellement.
-            execute_simple_command_in_terminal(cmd); 
-            
-        } else {
-            // Affichage simple pour les SQ (maintenu pour indiquer l'ignorance)
-            snprintf(buffer, sizeof(buffer), "Tâche ID %lu de type SQ ignorée.", all_tasks[i].taskid);
-            write_line(buffer);
-        }
+        // Appel de la nouvelle fonction principale qui gère SI et SQ
+        execute_command_in_terminal(cmd); 
         
         // Nettoyage après l'exécution
         free_command(cmd);
     }
 
-    // MARQUEUR DE FIN DES COMMANDES
     write_line("\nFin des commandes"); 
 
     // Libère le tableau principal

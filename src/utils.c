@@ -1,18 +1,21 @@
 #include "../include/erraid.h"
 #include "../include/utils.h" 
-#include <stdlib.h>     // Pour malloc, free, exit, atoi
-#include <string.h>     // Pour strlen, memcpy, strcpy, memset
-#include <unistd.h>     // Pour read, close
-#include <fcntl.h>      // Pour open, O_RDONLY
-#include <dirent.h>     // Pour opendir, readdir, closedir
-#include <ctype.h>      // Pour isdigit
-#include <errno.h>      // Pour errno
+#include <unistd.h>    
+#include <endian.h>   
+#include <string.h>    
+#include <stdio.h>     
+#include <stdlib.h>    
+#include <fcntl.h>     
+#include <dirent.h>     
+#include <ctype.h>      
+#include <errno.h>      
 
 // --- Constantes pour les types de commande ---
 // 0x5349 est 'S' 'I' en ASCII
 #define TYPE_SI 0x5349 
 // 0x5351 est 'S' 'Q' en ASCII
 #define TYPE_SQ 0x5351
+
 
 void write_line(const char *line) {
     write(STDOUT_FILENO, line, strlen(line));
@@ -64,6 +67,49 @@ int read_u64_be(int fd, uint64_t *val) {
     return 0;
 }
 
+
+
+/**
+ * Affiche récursivement le contenu d'une structure command.
+ * @param cmd Pointeur vers la commande à afficher.
+ * @param indent Niveau d'indentation pour un affichage lisible.
+ */
+void print_command(struct command *cmd, int indent) {
+    // Crée une chaîne d'indentation (ex: "    ")
+    char indent_str[32] = {0};
+    for(int i = 0; i < indent * 2 && i < 31; i++) {
+        indent_str[i] = ' ';
+    }
+    
+    char buffer[MAX_PATH_LEN];
+
+
+    if (strcmp(cmd->type, "SI") == 0) {
+        snprintf(buffer, sizeof(buffer), "%s-> [SI] argc = %d", indent_str, cmd->argc);
+        write_line(buffer);
+        // Affiche chaque argument
+        for (int i = 0; i < cmd->argc; i++) {
+            snprintf(buffer, sizeof(buffer), "%s  argv[%d]: %s", indent_str, i, cmd->argv[i]);
+            write_line(buffer);
+        }
+    
+
+    } else if (strcmp(cmd->type, "SQ") == 0) {
+        snprintf(buffer, sizeof(buffer), "%s-> [SQ] subcount = %zu", indent_str, cmd->subcount);
+        write_line(buffer);
+        // Appel récursif pour les sous-commandes
+        for (size_t i = 0; i < cmd->subcount; i++) {
+            
+            print_command(&cmd->subcommands[i], indent + 1);
+        }
+
+
+    } else {
+        snprintf(buffer, sizeof(buffer), "%s-> [??] Type inconnu (%s)", indent_str, cmd->type);
+        write_line(buffer);
+    }
+}
+
 int read_u8(int fd, uint8_t *val) {
     ssize_t bytes_read = read(fd, val, sizeof(*val));
     if (bytes_read == -1) return -1;
@@ -73,3 +119,4 @@ int read_u8(int fd, uint8_t *val) {
     }
     return 0;
 }
+

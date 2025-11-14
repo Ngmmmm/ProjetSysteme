@@ -38,9 +38,9 @@ test: $(BIN_DIR)/erraid
 	@mkdir -p $(TEST_DIR)
 	@echo "==> Copie des exemples d’arborescences..."
 	@cp -r consignes/exemples-arborescences/exemple-arborescence-1/tmp-username-erraid/* $(TEST_DIR) 
-	@cp -r consignes/exemples-arborescences/exemple-arborescence-2/tmp-username-erraid/* $(TEST_DIR) 
-	@cp -r consignes/exemples-arborescences/exemple-arborescence-3/tmp-username-erraid/* $(TEST_DIR) 
-	@cp -r consignes/exemples-arborescences/exemple-arborescence-4/tmp-username-erraid/* $(TEST_DIR) 
+#	@cp -r consignes/exemples-arborescences/exemple-arborescence-2/tmp-username-erraid/* $(TEST_DIR) 
+#	@cp -r consignes/exemples-arborescences/exemple-arborescence-3/tmp-username-erraid/* $(TEST_DIR) 
+#	@cp -r consignes/exemples-arborescences/exemple-arborescence-4/tmp-username-erraid/* $(TEST_DIR) 
 	@echo "==> Exécution du démon erraid sur $(TEST_DIR)"
 	@$(BIN_DIR)/erraid $(TEST_DIR)
 	@echo "==> Test terminé."

@@ -511,11 +511,10 @@ int execute_simple_command_in_terminal(struct command *cmd) {
             return -1;
         }
 
-        if (WIFEXITED(wstatus)) {
-            return WEXITSTATUS(wstatus); // Récupère le code de sortie normal
+        if (WIFEXITED(wstatus)) { // Est-ce que le fils est sorti normalement (exit())
+            return WEXITSTATUS(wstatus); // Récupère le code de sortie normal du fils
         } else {
-            // Terminaison par signal
-            return WTERMSIG(wstatus); // Retourne un code indiquant l'échec par signal
+            return -1;
         }
     }
 }

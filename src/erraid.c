@@ -439,30 +439,10 @@ struct task *load_all_tasks(size_t *task_count) {
     return task_array;
 }
 
-/**
- * Fonction récursive principale pour exécuter n'importe quel type de commande.
- * La sortie et l'erreur s'affichent sur le terminal.
- * @param cmd La structure de commande (SI ou SQ).
- * @return Le code de sortie final, ou -1 en cas d'erreur.
- */
-int execute_command_in_terminal(struct command *cmd) {
-    if (cmd == NULL) {
-        return -1;
-    }
+// Déclaration anticipée
+int execute_command_in_terminal(struct command *cmd, uint64_t taskid);
 
-    if (strcmp(cmd->type, "SI") == 0) {
-        return execute_simple_command_in_terminal(cmd);
-    } 
-    
-    if (strcmp(cmd->type, "SQ") == 0) {
-        return execute_sequence_command_in_terminal(cmd);
-    }
-
-    write_line("Type de commande inconnu pour l'exécution.");
-    return -1;
-}
-
-int execute_sequence_command_in_terminal(struct command *cmd) {
+int execute_sequence_command_in_terminal(struct command *cmd, uint64_t taskid) {
     int last_exit_code = 0;
     
     if (cmd == NULL || cmd->subcount == 0) {
@@ -473,7 +453,7 @@ int execute_sequence_command_in_terminal(struct command *cmd) {
     for (size_t i = 0; i < cmd->subcount; i++) {
         
         // Exécution de la sous-commande (peut être SI ou une autre SQ)
-        last_exit_code = execute_command_in_terminal(&cmd->subcommands[i]);
+        last_exit_code = execute_command_in_terminal(&cmd->subcommands[i], taskid);
 
         if (last_exit_code != 0) break;
     }
@@ -483,9 +463,10 @@ int execute_sequence_command_in_terminal(struct command *cmd) {
 /**
  * Exécute une commande simple (SI) et attend son achèvement.
  * @param cmd La structure de commande à exécuter (doit être de type "SI").
+ * @param taskid ajout de taskid pour les logs
  * @return Le code de sortie de la commande 0, ou -1 en cas d'échec de fork/exec.
  */
-int execute_simple_command_in_terminal(struct command *cmd) {
+int execute_simple_command_in_terminal(struct command *cmd, uint64_t taskid) { 
     if (cmd == NULL || strcmp(cmd->type, "SI") != 0 || cmd->argc < 1) {
         write_line("Commande invalide pour exécution simple.");
         return -1;
@@ -498,15 +479,43 @@ int execute_simple_command_in_terminal(struct command *cmd) {
     }
 
     if (pid == 0) { // Processus fils
-        execvp(cmd->argv[0], cmd->argv); // Exécution dans le terminal
         
-        // execvp ne retourne qu'en cas d'erreur
+        char stdout_path[MAX_PATH_LEN];
+        char stderr_path[MAX_PATH_LEN];
+        char base_path[MAX_PATH_LEN]; 
+
+        const char *user = getenv("USER");
+        if (!user) user = "unknown";
+        snprintf(base_path, sizeof(base_path), "/tmp/%s/erraid/tasks", user);
+
+        // Construit les chemins de log
+        snprintf(stdout_path, MAX_PATH_LEN, "%s/%lu/stdout", base_path, taskid);
+        snprintf(stderr_path, MAX_PATH_LEN, "%s/%lu/stderr", base_path, taskid);
+
+        // Ouvre les fichiers de log
+        int fd_out = open(stdout_path, O_WRONLY | O_CREAT | O_APPEND, 0644);
+        int fd_err = open(stderr_path, O_WRONLY | O_CREAT | O_APPEND, 0644);
+
+        if (fd_out == -1 || fd_err == -1) {
+            write_error("Échec: ouverture des fichiers stdout/stderr");
+            exit(126); 
+        }
+
+        // Redirige stdout (1) et stderr (2)
+        dup2(fd_out, STDOUT_FILENO);
+        dup2(fd_err, STDERR_FILENO);
+        
+        close(fd_out); 
+        close(fd_err);
+
+        execvp(cmd->argv[0], cmd->argv); 
+        
         write_error("Échec de execvp");
-        exit(-1); // Code d'erreur standard pour exec
+        exit(127);
     } else {
         // Processus père
         int wstatus;
-        if (waitpid(pid, &wstatus, 0) == -1) {
+        if (waitpid(pid, &wstatus, 0) == -1) { // ICI POUR PLUS TARD FAUDRA FAIRE UN WHILE PROBABLEMENT POUR QUE LE PERE SOIT TOUJOURS EN MARCHE 
             write_error("Échec de waitpid");
             return -1;
         }
@@ -517,6 +526,31 @@ int execute_simple_command_in_terminal(struct command *cmd) {
             return -1;
         }
     }
+}
+
+
+/**
+ * Fonction récursive principale pour exécuter n'importe quel type de commande.
+ * La sortie et l'erreur sont maintenant redirigées vers les fichiers.
+ * @param cmd La structure de commande (SI ou SQ).
+ * @param taskid ajout de taskid
+ * @return Le code de sortie final, ou -1 en cas d'erreur.
+ */
+int execute_command_in_terminal(struct command *cmd, uint64_t taskid) { 
+    if (cmd == NULL) {
+        return -1;
+    }
+
+    if (strcmp(cmd->type, "SI") == 0) {
+        return execute_simple_command_in_terminal(cmd, taskid);
+    } 
+    
+    if (strcmp(cmd->type, "SQ") == 0) {
+        return execute_sequence_command_in_terminal(cmd, taskid);
+    }
+
+    write_line("Type de commande inconnu pour l'exécution.");
+    return -1;
 }
 
 
@@ -548,21 +582,42 @@ int main(void) {
     write_line("\n"); 
 
     // EXÉCUTION DES COMMANDES
-    write_line("--- PHASE 2 : EXÉCUTION DES COMMANDES (SI) ---");
+    write_line("--- PHASE 2 : EXÉCUTION DES COMMANDES (Redirigées) ---");
     write_line("Resultat :");
 
     for (size_t i = 0; i < task_count; i++) {
         
         struct command *cmd = all_tasks[i].command;
 
-        // Appel de la nouvelle fonction principale qui gère SI et SQ
-        execute_command_in_terminal(cmd); 
+        // --- DÉBUT DE L'AJOUT NÉCESSAIRE ---
+        // Vider les fichiers de log (O_TRUNC) AVANT d'appeler l'exécution.
+        // Cela garantit que chaque tâche démarre avec un fichier log vide.
+        
+        char stdout_path[MAX_PATH_LEN];
+        char stderr_path[MAX_PATH_LEN];
+        char base_path[MAX_PATH_LEN];
+
+        const char *user = getenv("USER");
+        if (!user) user = "unknown";
+        snprintf(base_path, sizeof(base_path), "/tmp/%s/erraid/tasks", user);
+        snprintf(stdout_path, MAX_PATH_LEN, "%s/%lu/stdout", base_path, all_tasks[i].taskid);
+        snprintf(stderr_path, MAX_PATH_LEN, "%s/%lu/stderr", base_path, all_tasks[i].taskid);
+
+        // Ouvre avec O_TRUNC pour vider, puis ferme immédiatement.
+        int fd_out = open(stdout_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        int fd_err = open(stderr_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        
+        if (fd_out != -1) close(fd_out);
+        if (fd_err != -1) close(fd_err);
+        
+        // Appel de la fonction principale (qui utilise maintenant O_APPEND en interne)
+        execute_command_in_terminal(cmd, all_tasks[i].taskid); 
         
         // Nettoyage après l'exécution
         free_command(cmd);
     }
 
-    write_line("\nFin des commandes"); 
+    write_line("\nFin des commandes. Vérifiez les fichiers stdout/stderr."); 
 
     // Libère le tableau principal
     free(all_tasks);

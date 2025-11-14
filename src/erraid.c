@@ -440,12 +440,48 @@ struct task *load_all_tasks(size_t *task_count) {
 }
 
 
-
-
-
 /**
- *  Point d'entrée principal
+ * Exécute une commande simple (SI) et attend son achèvement.
+ * La sortie et l'erreur s'affichent sur le terminal.
+ * @param cmd La structure de commande à exécuter (doit être de type "SI").
+ * @return Le code de sortie de la commande 0, ou -1 en cas d'échec de fork/exec.
  */
+int execute_simple_command_in_terminal(struct command *cmd) {
+    if (cmd == NULL || strcmp(cmd->type, "SI") != 0 || cmd->argc < 1) {
+        write_line("Commande invalide pour exécution simple.");
+        return -1;
+    }
+
+    pid_t pid = fork();
+    if (pid == -1) {
+        write_error("Échec de fork");
+        return -1;
+    }
+
+    if (pid == 0) { // Processus fils
+        execvp(cmd->argv[0], cmd->argv); // Exécution dans le terminal
+        
+        // execvp ne retourne qu'en cas d'erreur
+        write_error("Échec de execvp");
+        exit(-1); // Code d'erreur standard pour exec
+    } else {
+        // Processus père
+        int wstatus;
+        if (waitpid(pid, &wstatus, 0) == -1) {
+            write_error("Échec de waitpid");
+            return -1;
+        }
+
+        if (WIFEXITED(wstatus)) {
+            return WEXITSTATUS(wstatus); // Récupère le code de sortie normal
+        } else {
+            // Terminaison par signal
+            return WTERMSIG(wstatus); // Retourne un code indiquant l'échec par signal
+        }
+    }
+}
+
+
 int main(void) {
     write_line("=== Démon erraid Test de chargement (Compteur) ===");
 
@@ -461,20 +497,45 @@ int main(void) {
     snprintf(buffer, sizeof(buffer), "%zu tâches chargées et triées :", task_count);
     write_line(buffer);
 
+    // AFFICHAGE DE LA LISTE DES TÂCHES
+    write_line("--- PHASE 1 : AFFICHAGE DE LA STRUCTURE CHARGÉE ---");
 
-
-
-
-    // Boucle pour afficher les tâches (maintenant triées) TEST
     for (size_t i = 0; i < task_count; i++) {
         snprintf(buffer, sizeof(buffer), "--- Tâche ID: %lu ---", all_tasks[i].taskid);
         write_line(buffer);
         
+        // Affiche la structure (print_command)
         print_command(all_tasks[i].command, 1);
-        
-        // Nettoyage
-        free_command(all_tasks[i].command);
     }
+    write_line("\n"); 
+    // EXÉCUTION DES COMMANDES
+    write_line("--- PHASE 2 : EXÉCUTION DES COMMANDES (SI) ---");
+    
+    // MARQUEUR DE DÉBUT DES RÉSULTATS
+    write_line("Resultat :");
+
+    for (size_t i = 0; i < task_count; i++) {
+        
+        struct command *cmd = all_tasks[i].command;
+
+        if (strcmp(cmd->type, "SI") == 0) {
+            
+            // Exécution réelle. La sortie s'affiche directement ici.
+            // Le code de retour est stocké mais non affiché individuellement.
+            execute_simple_command_in_terminal(cmd); 
+            
+        } else {
+            // Affichage simple pour les SQ (maintenu pour indiquer l'ignorance)
+            snprintf(buffer, sizeof(buffer), "Tâche ID %lu de type SQ ignorée.", all_tasks[i].taskid);
+            write_line(buffer);
+        }
+        
+        // Nettoyage après l'exécution
+        free_command(cmd);
+    }
+
+    // MARQUEUR DE FIN DES COMMANDES
+    write_line("\nFin des commandes"); 
 
     // Libère le tableau principal
     free(all_tasks);

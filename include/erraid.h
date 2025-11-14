@@ -42,7 +42,7 @@ struct command {
 struct task {
     uint64_t taskid;
     struct timing timing;
-    struct command command;
+    struct command *command;
 };
 
 /**

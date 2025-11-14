@@ -8,6 +8,7 @@
 #include <errno.h>     
 #include <stdio.h>    
 #include <fcntl.h> 
+#include <ctype.h>
 
 
 
@@ -23,23 +24,46 @@ int is_directory(const char *path) {
 }
 
 
-void free_command(struct command *cmd) {
+/**
+ * Libère récursivement le *contenu* d'une struct command
+ * (mais pas la struct elle-même).
+ */
+void free_command_contents(struct command *cmd) {
     if (cmd == NULL) return;
 
     if (strcmp(cmd->type, "SI") == 0) {
+        // Libère le contenu de 'SI'
         for (int i = 0; i < cmd->argc; i++) {
             free(cmd->argv[i]);
         }
         free(cmd->argv);
 
+    
     } else if (strcmp(cmd->type, "SQ") == 0) {
+        // Libère le contenu de 'SQ'
         for (size_t i = 0; i < cmd->subcount; i++) {
-            free_command(&cmd->subcommands[i]);
+
+            free_command_contents(&cmd->subcommands[i]);
         }
+
         free(cmd->subcommands);
+
     }
+
+}
+
+
+/**
+ * Libère un pointeur de commande (contenu + conteneur).
+ * Ne doit être appelée que sur un pointeur reçu de parse_command.
+ */
+void free_command(struct command *cmd) {
+    if (cmd == NULL) return;
     
+
+    free_command_contents(cmd);
     
+
     free(cmd);
 }
 
@@ -254,98 +278,202 @@ struct command *parse_command(const char *cmd_path) {
 }
 
 
+/**
+ * Lit et parse le fichier 'timing' pour une tâche donnée.
+ * @param task_path Le chemin vers le dossier de la tâche (ex: "/tmp/user/erraid/tasks/10").
+ * @param task_timing Un pointeur vers une struct timing qui sera remplie.
+ * @return 0 en cas de succès, -1 en cas d'erreur.
+ */
+int parse_timing(const char *task_path, struct timing *task_timing) {
+    char timing_path[MAX_PATH_LEN];
+    snprintf(timing_path, sizeof(timing_path), "%s/timing", task_path);
+
+    // Ouvre le fichier en lecture seule
+    int fd = open(timing_path, O_RDONLY);
+    if (fd == -1) {
+        write_error("parse_timing: Impossible d'ouvrir le fichier timing");
+        return -1;
+    }
+
+    // Lit les 3 champs décrits dans serialisation.md
+    int error = 0;
+
+    // Minutes (uint64_t)
+    if (read_u64_be(fd, &task_timing->minutes) == -1) {
+        write_error("parse_timing: Erreur lecture timing (minutes)");
+        error = 1;
+    }
+
+    // Heures (uint32_t)
+    if (!error && read_u32_be(fd, &task_timing->hours) == -1) {
+        write_error("parse_timing: Erreur lecture timing (hours)");
+        error = 1;
+    }
+
+    // Jours (uint8_t) 1 octet
+    if (!error && read(fd, &task_timing->daysofweek, 1) != 1) {
+        write_error("parse_timing: Erreur lecture timing (days)");
+        error = 1;
+    }
+
+    close(fd);
+
+    return error ? -1 : 0;
+}
+
 
 /**
- * Parcourt le répertoire /tmp/$USER/erraid/tasks et affiche les tâches trouvées.
+ * Fonction de comparaison pour qsort, pour trier les tâches par taskid.
  */
-void find_all_tasks(void) {
+int compare_tasks(const void *a, const void *b) {
+    // Convertit les pointeurs 'void' en pointeurs 'struct task'
+    struct task *taskA = (struct task *)a;
+    struct task *taskB = (struct task *)b;
+
+    // Compare les taskid
+    if (taskA->taskid < taskB->taskid) return -1;
+    if (taskA->taskid > taskB->taskid) return 1;
+    return 0;
+}
+
+/**
+ * Charge toutes les tâches depuis le disque en utilisant un tableau dynamique,
+ * les trie par ID, et renvoie un tableau alloué sur le tas.
+ * @param task_count Un pointeur de sortie pour stocker le nombre de tâches trouvées.
+ * @return Un pointeur vers le tableau de 'struct task',
+ * ou NULL en cas d'erreur.
+ */
+struct task *load_all_tasks(size_t *task_count) {
     char base_dir[MAX_PATH_LEN];
-    char message_buffer[MAX_PATH_LEN * 2];
     int len;
 
     const char *user = getenv("USER");
     if (!user) user = "unknown";
 
-    // Construit le chemin : /tmp/$USER/erraid/tasks
     len = snprintf(base_dir, sizeof(base_dir), "/tmp/%s/erraid/tasks", user);
     if (len >= sizeof(base_dir)) {
         write_line("Erreur: Le chemin du répertoire de base est trop long.");
-        return;
+        return NULL;
     }
 
     DIR *dirp = opendir(base_dir);
     if (!dirp) {
         write_error("Impossible d'ouvrir le répertoire des tâches");
-        return;
+        return NULL;
     }
 
-    // Affiche le répertoire des tâches
-    len = snprintf(message_buffer, sizeof(message_buffer), "Répertoire des tâches : %s", base_dir);
-    write_line(message_buffer);
+    // Initialisation du tableau dynamique 
+    size_t count = 0;     
+    size_t capacity = 10;  // Taille initiale 
+    struct task *task_array = malloc(sizeof(struct task) * capacity);
+    
+    if (!task_array) {
+        write_error("malloc initial failed");
+        closedir(dirp);
+        return NULL;
+    }
 
+    // Parcourir le répertoire (un seul passage) 
     struct dirent *entry;
-
     while ((entry = readdir(dirp)) != NULL) {
-        // Ignore "." et ".."
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
             continue;
 
         char task_path[MAX_PATH_LEN];
-        len = snprintf(task_path, sizeof(task_path), "%s/%s", base_dir, entry->d_name);
+        snprintf(task_path, sizeof(task_path), "%s/%s", base_dir, entry->d_name);
         
-        if (len >= sizeof(task_path)) {
-            snprintf(message_buffer, sizeof(message_buffer), "Erreur: Chemin trop long pour %s", entry->d_name);
-            write_line(message_buffer);
-            continue;
-        }
-
         if (is_directory(task_path)) {
-            snprintf(message_buffer, sizeof(message_buffer), "Tâche trouvée : %s", entry->d_name);
-            write_line(message_buffer);
-
-            // === Lecture du fichier timing ===
-            char timing_path[MAX_PATH_LEN];
-            snprintf(timing_path, sizeof(timing_path), "%s/timing", task_path);
-
-            int fd = open(timing_path, O_RDONLY);
-            if (fd == -1) {
-                write_error("Impossible d'ouvrir le fichier timing");
-                continue;
+            // Agrandir le tableau si nécessaire
+            if (count == capacity) {
+                capacity *= 2; // Double la taille
+                struct task *new_array = realloc(task_array, sizeof(struct task) * capacity);
+                if (!new_array) {
+                    write_error("realloc failed");
+                    free(task_array); 
+                    closedir(dirp);
+                    return NULL;
+                }
+                task_array = new_array;
             }
 
-            struct timing task_timing; 
+            // Remplir la tâche à l'index 'count' 
+            struct task *current_task = &task_array[count];
+            
+            // Remplir taskid
+            current_task->taskid = strtoull(entry->d_name, NULL, 10);
 
-            if (read_u64_be(fd, &task_timing.minutes) == -1) {
-                 write_error("Erreur lecture timing (minutes)");
-                 close(fd);
-                 continue;
+            // Remplir timing
+            if (parse_timing(task_path, &current_task->timing) != 0) {
+                continue; // Ignore cette tâche
             }
-            if (read_u32_be(fd, &task_timing.hours) == -1) {
-                 write_error("Erreur lecture timing (hours)");
-                 close(fd);
-                 continue;
-            }
-            if (read_u8(fd, &task_timing.daysofweek) == -1) { 
-                 write_error("Erreur lecture timing (days)");
-                 close(fd);
-                 continue;
-            }
-            close(fd);
 
-            //snprintf(message_buffer, sizeof(message_buffer), "Timing : %lu", timing_value);
-            //write_line(message_buffer);
+            // Remplir la commande
+            char cmd_path[MAX_PATH_LEN];
+            snprintf(cmd_path, sizeof(cmd_path), "%s/cmd", task_path);
+            
+            current_task->command = parse_command(cmd_path);
+            if (current_task->command == NULL) {
+                continue; // Ignore cette tâche
+            }
+
+            
+            count++;
         }
     }
-
     closedir(dirp);
+
+    if (count == 0) {
+        free(task_array);
+        *task_count = 0;
+        return NULL;
+    }
+
+    // Trier le tableau 
+    qsort(task_array, count, sizeof(struct task), compare_tasks);
+
+    *task_count = count;
+    return task_array;
 }
 
 
 
 
 
+/**
+ *  Point d'entrée principal
+ */
 int main(void) {
-    write_line("=== Démon erraid - Étape 1 (parcours des tâches) ===");
-    find_all_tasks();
+    write_line("=== Démon erraid Test de chargement (Compteur) ===");
+
+    size_t task_count = 0;
+    struct task *all_tasks = load_all_tasks(&task_count);
+
+    if (all_tasks == NULL) {
+        write_line("Aucune tâche n'a été chargée.");
+        return 0;
+    }
+
+    char buffer[128];
+    snprintf(buffer, sizeof(buffer), "%zu tâches chargées et triées :", task_count);
+    write_line(buffer);
+
+
+
+
+
+    // Boucle pour afficher les tâches (maintenant triées) TEST
+    for (size_t i = 0; i < task_count; i++) {
+        snprintf(buffer, sizeof(buffer), "--- Tâche ID: %lu ---", all_tasks[i].taskid);
+        write_line(buffer);
+        
+        print_command(all_tasks[i].command, 1);
+        
+        // Nettoyage
+        free_command(all_tasks[i].command);
+    }
+
+    // Libère le tableau principal
+    free(all_tasks);
+
     return 0;
 }

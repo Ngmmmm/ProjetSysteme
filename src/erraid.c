@@ -11,6 +11,7 @@
 #include <ctype.h>
 #include <stddef.h>
 #include <sys/wait.h>
+#include <time.h>
 
 
 
@@ -553,9 +554,39 @@ int execute_command_in_terminal(struct command *cmd, uint64_t taskid) {
     return -1;
 }
 
+/**
+ * Vérifie si une tâche doit être exécutée maintenant.
+ * @param t La tâche à vérifier.
+ * @param now L'heure actuelle.
+ * @return 1 si c'est l'heure, 0 sinon.
+ */
+int is_time_to_run(struct task *t, struct tm *now) {
+
+    uint64_t minute_bit = (uint64_t)1 << now->tm_min;    // 0-59
+    uint32_t hour_bit   = (uint32_t)1 << now->tm_hour;   // 0-23
+    uint8_t  day_bit    = (uint8_t)1  << now->tm_wday;    // 0-6 (Dimanche=0)
+
+
+    
+    if ((t->timing.minutes & minute_bit) == 0) {
+        return 0; 
+    }
+    
+    if ((t->timing.hours & hour_bit) == 0) {
+        return 0; 
+    }
+
+    if ((t->timing.daysofweek & day_bit) == 0) {
+        return 0; 
+    }
+
+    // Tous les champs correspondent
+    return 1;
+}
+
 
 int main(void) {
-    write_line("=== Démon erraid Test de chargement (Compteur) ===");
+    write_line("=== Démon erraid : Scheduler actif ===");
 
     size_t task_count = 0;
     struct task *all_tasks = load_all_tasks(&task_count);
@@ -566,60 +597,40 @@ int main(void) {
     }
 
     char buffer[128];
-    snprintf(buffer, sizeof(buffer), "%zu tâches chargées et triées :", task_count);
+    snprintf(buffer, sizeof(buffer), "%zu tâches chargées et prêtes à s'exécuter.", task_count);
     write_line(buffer);
 
-    // AFFICHAGE DE LA LISTE DES TÂCHES
-    write_line("--- PHASE 1 : AFFICHAGE DE LA STRUCTURE CHARGÉE ---");
+    
+    while (1) {
+        time_t loop_start_time = time(NULL);
+        struct tm *local_now = localtime(&loop_start_time);
 
-    for (size_t i = 0; i < task_count; i++) {
-        snprintf(buffer, sizeof(buffer), "--- Tâche ID: %lu ---", all_tasks[i].taskid);
-        write_line(buffer);
-        
-        // Affiche la structure (print_command)
-        print_command(all_tasks[i].command, 1);
-    }
-    write_line("\n"); 
+        for (size_t i = 0; i < task_count; i++) {
+            struct task *t = &all_tasks[i];
 
-    // EXÉCUTION DES COMMANDES
-    write_line("--- PHASE 2 : EXÉCUTION DES COMMANDES (Redirigées) ---");
-    write_line("Resultat :");
+            // Vérifie si c'est le moment de lancer la tâche
+            if (is_time_to_run(t, local_now)) {
 
-    for (size_t i = 0; i < task_count; i++) {
-        
-        struct command *cmd = all_tasks[i].command;
+                snprintf(buffer, sizeof(buffer), "Exécution de la tâche ID %lu...", t->taskid);
+                write_line(buffer);
 
-        // --- DÉBUT DE L'AJOUT NÉCESSAIRE ---
-        // Vider les fichiers de log (O_TRUNC) AVANT d'appeler l'exécution.
-        // Cela garantit que chaque tâche démarre avec un fichier log vide.
-        
-        char stdout_path[MAX_PATH_LEN];
-        char stderr_path[MAX_PATH_LEN];
-        char base_path[MAX_PATH_LEN];
 
-        const char *user = getenv("USER");
-        if (!user) user = "unknown";
-        snprintf(base_path, sizeof(base_path), "/tmp/%s/erraid/tasks", user);
-        snprintf(stdout_path, MAX_PATH_LEN, "%s/%lu/stdout", base_path, all_tasks[i].taskid);
-        snprintf(stderr_path, MAX_PATH_LEN, "%s/%lu/stderr", base_path, all_tasks[i].taskid);
+                int exit_code = execute_command_in_terminal(t->command, t->taskid);
 
-        // Ouvre avec O_TRUNC pour vider, puis ferme immédiatement.
-        int fd_out = open(stdout_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-        int fd_err = open(stderr_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-        
-        if (fd_out != -1) close(fd_out);
-        if (fd_err != -1) close(fd_err);
-        
-        // Appel de la fonction principale (qui utilise maintenant O_APPEND en interne)
-        execute_command_in_terminal(cmd, all_tasks[i].taskid); 
-        
-        // Nettoyage après l'exécution
-        free_command(cmd);
+
+                //log_execution(t->taskid, exit_code);
+            }
+        }
+
+        // Attendre jusqu'à la prochaine minute
+        time_t now = time(NULL);
+        sleep(60 - (now % 60));
     }
 
-    write_line("\nFin des commandes. Vérifiez les fichiers stdout/stderr."); 
-
-    // Libère le tableau principal
+    
+    for (size_t i = 0; i < task_count; i++) {
+        free_command(all_tasks[i].command);
+    }
     free(all_tasks);
 
     return 0;

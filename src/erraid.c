@@ -584,6 +584,38 @@ int is_time_to_run(struct task *t, struct tm *now) {
     return 1;
 }
 
+void log_execution(uint64_t taskid, int exit_code) {
+    char log_path[MAX_PATH_LEN];
+    char base_path[MAX_PATH_LEN];
+
+    //Construire le chemin 
+    const char *user = getenv("USER");
+    if (!user) user = "unknown";
+    snprintf(base_path, sizeof(base_path), "/tmp/%s/erraid/tasks", user);
+    snprintf(log_path, MAX_PATH_LEN, "%s/%lu/times-exitcodes", base_path, taskid);
+
+    int fd = open(log_path, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    if (fd == -1) {
+        write_error("Échec: ouverture du fichier times-exitcodes");
+        return;
+    }
+
+    //Transforme en big endian
+    uint64_t nouveau_be = htobe64(time(NULL)); 
+    uint16_t code_be;
+
+    if (exit_code == -1) {
+        code_be = htobe16(0xFFFF); 
+    } else {
+        code_be = htobe16((uint16_t)exit_code);
+    }
+
+    write(fd, &nouveau_be, sizeof(nouveau_be));
+    write(fd, &code_be, sizeof(code_be));
+
+    close(fd);
+}
+
 
 int main(void) {
     write_line("=== Démon erraid : Scheduler actif ===");
@@ -618,7 +650,7 @@ int main(void) {
                 int exit_code = execute_command_in_terminal(t->command, t->taskid);
 
 
-                //log_execution(t->taskid, exit_code);
+                log_execution(t->taskid, exit_code);
             }
         }
 

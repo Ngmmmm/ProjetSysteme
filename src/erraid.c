@@ -10,7 +10,8 @@
 #include <fcntl.h> 
 #include <ctype.h>
 #include <stddef.h>
-
+#include <sys/wait.h>
+#include <time.h>
 
 
 
@@ -439,15 +440,185 @@ struct task *load_all_tasks(size_t *task_count) {
     return task_array;
 }
 
+// Déclaration anticipée
+int execute_command_in_terminal(struct command *cmd, uint64_t taskid);
 
+int execute_sequence_command_in_terminal(struct command *cmd, uint64_t taskid) {
+    int last_exit_code = 0;
+    
+    if (cmd == NULL || cmd->subcount == 0) {
+        return 0;
+    }
 
+    // Boucle sur toutes les sous-commandes
+    for (size_t i = 0; i < cmd->subcount; i++) {
+        
+        // Exécution de la sous-commande (peut être SI ou une autre SQ)
+        last_exit_code = execute_command_in_terminal(&cmd->subcommands[i], taskid);
+
+        if (last_exit_code != 0) break;
+    }
+    return last_exit_code;
+}
+
+/**
+ * Exécute une commande simple (SI) et attend son achèvement.
+ * @param cmd La structure de commande à exécuter (doit être de type "SI").
+ * @param taskid ajout de taskid pour les logs
+ * @return Le code de sortie de la commande 0, ou -1 en cas d'échec de fork/exec.
+ */
+int execute_simple_command_in_terminal(struct command *cmd, uint64_t taskid) { 
+    if (cmd == NULL || strcmp(cmd->type, "SI") != 0 || cmd->argc < 1) {
+        write_line("Commande invalide pour exécution simple.");
+        return -1;
+    }
+
+    pid_t pid = fork();
+    if (pid == -1) {
+        write_error("Échec de fork");
+        return -1;
+    }
+
+    if (pid == 0) { // Processus fils
+        
+        char stdout_path[MAX_PATH_LEN];
+        char stderr_path[MAX_PATH_LEN];
+        char base_path[MAX_PATH_LEN]; 
+
+        const char *user = getenv("USER");
+        if (!user) user = "unknown";
+        snprintf(base_path, sizeof(base_path), "/tmp/%s/erraid/tasks", user);
+
+        // Construit les chemins de log
+        snprintf(stdout_path, MAX_PATH_LEN, "%s/%lu/stdout", base_path, taskid);
+        snprintf(stderr_path, MAX_PATH_LEN, "%s/%lu/stderr", base_path, taskid);
+
+        // Ouvre les fichiers de log
+        int fd_out = open(stdout_path, O_WRONLY | O_CREAT | O_APPEND, 0644);
+        int fd_err = open(stderr_path, O_WRONLY | O_CREAT | O_APPEND, 0644);
+
+        if (fd_out == -1 || fd_err == -1) {
+            write_error("Échec: ouverture des fichiers stdout/stderr");
+            exit(126); 
+        }
+
+        // Redirige stdout (1) et stderr (2)
+        dup2(fd_out, STDOUT_FILENO);
+        dup2(fd_err, STDERR_FILENO);
+        
+        close(fd_out); 
+        close(fd_err);
+
+        execvp(cmd->argv[0], cmd->argv); 
+        
+        write_error("Échec de execvp");
+        exit(127);
+    } else {
+        // Processus père
+        int wstatus;
+        if (waitpid(pid, &wstatus, 0) == -1) { // ICI POUR PLUS TARD FAUDRA FAIRE UN WHILE PROBABLEMENT POUR QUE LE PERE SOIT TOUJOURS EN MARCHE 
+            write_error("Échec de waitpid");
+            return -1;
+        }
+
+        if (WIFEXITED(wstatus)) { // Est-ce que le fils est sorti normalement (exit())
+            return WEXITSTATUS(wstatus); // Récupère le code de sortie normal du fils
+        } else {
+            return -1;
+        }
+    }
+}
 
 
 /**
- *  Point d'entrée principal
+ * Fonction récursive principale pour exécuter n'importe quel type de commande.
+ * La sortie et l'erreur sont maintenant redirigées vers les fichiers.
+ * @param cmd La structure de commande (SI ou SQ).
+ * @param taskid ajout de taskid
+ * @return Le code de sortie final, ou -1 en cas d'erreur.
  */
+int execute_command_in_terminal(struct command *cmd, uint64_t taskid) { 
+    if (cmd == NULL) {
+        return -1;
+    }
+
+    if (strcmp(cmd->type, "SI") == 0) {
+        return execute_simple_command_in_terminal(cmd, taskid);
+    } 
+    
+    if (strcmp(cmd->type, "SQ") == 0) {
+        return execute_sequence_command_in_terminal(cmd, taskid);
+    }
+
+    write_line("Type de commande inconnu pour l'exécution.");
+    return -1;
+}
+
+/**
+ * Vérifie si une tâche doit être exécutée maintenant.
+ * @param t La tâche à vérifier.
+ * @param now L'heure actuelle.
+ * @return 1 si c'est l'heure, 0 sinon.
+ */
+int is_time_to_run(struct task *t, struct tm *now) {
+
+    uint64_t minute_bit = (uint64_t)1 << now->tm_min;    // 0-59
+    uint32_t hour_bit   = (uint32_t)1 << now->tm_hour;   // 0-23
+    uint8_t  day_bit    = (uint8_t)1  << now->tm_wday;    // 0-6 (Dimanche=0)
+
+
+    
+    if ((t->timing.minutes & minute_bit) == 0) {
+        return 0; 
+    }
+    
+    if ((t->timing.hours & hour_bit) == 0) {
+        return 0; 
+    }
+
+    if ((t->timing.daysofweek & day_bit) == 0) {
+        return 0; 
+    }
+
+    // Tous les champs correspondent
+    return 1;
+}
+
+void log_execution(uint64_t taskid, int exit_code) {
+    char log_path[MAX_PATH_LEN];
+    char base_path[MAX_PATH_LEN];
+
+    //Construire le chemin 
+    const char *user = getenv("USER");
+    if (!user) user = "unknown";
+    snprintf(base_path, sizeof(base_path), "/tmp/%s/erraid/tasks", user);
+    snprintf(log_path, MAX_PATH_LEN, "%s/%lu/times-exitcodes", base_path, taskid);
+
+    int fd = open(log_path, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    if (fd == -1) {
+        write_error("Échec: ouverture du fichier times-exitcodes");
+        return;
+    }
+
+    //Transforme en big endian
+    uint64_t nouveau_be = htobe64(time(NULL)); 
+    uint16_t code_be;
+
+    if (exit_code == -1) {
+        code_be = htobe16(0xFFFF); 
+    } else {
+        code_be = htobe16((uint16_t)exit_code);
+    }
+
+    write(fd, &nouveau_be, sizeof(nouveau_be));
+    write(fd, &code_be, sizeof(code_be));
+
+    close(fd);
+}
+
+
 int main(void) {
-    write_line("=== Démon erraid Test de chargement (Compteur) ===");
+    write_line("=== Démon erraid : Scheduler actif ===");
 
     size_t task_count = 0;
     struct task *all_tasks = load_all_tasks(&task_count);
@@ -458,25 +629,40 @@ int main(void) {
     }
 
     char buffer[128];
-    snprintf(buffer, sizeof(buffer), "%zu tâches chargées et triées :", task_count);
+    snprintf(buffer, sizeof(buffer), "%zu tâches chargées et prêtes à s'exécuter.", task_count);
     write_line(buffer);
 
+    
+    while (1) {
+        time_t loop_start_time = time(NULL);
+        struct tm *local_now = localtime(&loop_start_time);
+
+        for (size_t i = 0; i < task_count; i++) {
+            struct task *t = &all_tasks[i];
+
+            // Vérifie si c'est le moment de lancer la tâche
+            if (is_time_to_run(t, local_now)) {
+
+                snprintf(buffer, sizeof(buffer), "Exécution de la tâche ID %lu...", t->taskid);
+                write_line(buffer);
 
 
+                int exit_code = execute_command_in_terminal(t->command, t->taskid);
 
 
-    // Boucle pour afficher les tâches (maintenant triées) TEST
-    for (size_t i = 0; i < task_count; i++) {
-        snprintf(buffer, sizeof(buffer), "--- Tâche ID: %lu ---", all_tasks[i].taskid);
-        write_line(buffer);
-        
-        print_command(all_tasks[i].command, 1);
-        
-        // Nettoyage
-        free_command(all_tasks[i].command);
+                log_execution(t->taskid, exit_code);
+            }
+        }
+
+        // Attendre jusqu'à la prochaine minute
+        time_t now = time(NULL);
+        sleep(60 - (now % 60));
     }
 
-    // Libère le tableau principal
+    
+    for (size_t i = 0; i < task_count; i++) {
+        free_command(all_tasks[i].command);
+    }
     free(all_tasks);
 
     return 0;

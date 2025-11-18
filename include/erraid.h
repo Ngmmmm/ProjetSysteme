@@ -70,3 +70,18 @@ struct command *parse_command(const char *cmd_path);
  * Parcourt le répertoire /tmp/$USER/erraid/tasks et affiche les tâches trouvées.
  */
 void find_all_tasks(void);
+
+/**
+ * Exécute une commande simple (SI) et attend son achèvement dans le terminal.
+ */
+int execute_simple_command_in_terminal(struct command *cmd, uint64_t taskid);
+
+/**
+ * Exécute une Séquence de Commandes (SQ) de manière séquentielle dans le terminal.
+ */
+int execute_sequence_command_in_terminal(struct command *cmd, uint64_t taskid);
+
+/**
+ * Fonction récursive principale pour exécuter n'importe quel type de commande.
+ */
+int execute_command_in_terminal(struct command *cmd, uint64_t taskid);

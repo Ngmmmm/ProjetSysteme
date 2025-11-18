@@ -19,4 +19,5 @@ int read_u16_be(int fd, uint16_t *val);
 int read_u32_be(int fd, uint32_t *val);
 int read_u64_be(int fd, uint64_t *val);
 int read_u8(int fd, uint8_t *val);
+void print_command(struct command *cmd, int indent);
 

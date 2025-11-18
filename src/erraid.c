@@ -494,8 +494,8 @@ int execute_simple_command_in_terminal(struct command *cmd, uint64_t taskid) {
         snprintf(stderr_path, MAX_PATH_LEN, "%s/%lu/stderr", base_path, taskid);
 
         // Ouvre les fichiers de log
-        int fd_out = open(stdout_path, O_WRONLY | O_CREAT | O_APPEND, 0644);
-        int fd_err = open(stderr_path, O_WRONLY | O_CREAT | O_APPEND, 0644);
+        int fd_out = open(stdout_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        int fd_err = open(stderr_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 
         if (fd_out == -1 || fd_err == -1) {
             write_error("Échec: ouverture des fichiers stdout/stderr");

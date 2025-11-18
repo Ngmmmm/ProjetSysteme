@@ -45,43 +45,28 @@ struct task {
     struct command *command;
 };
 
-/**
- * Vérifie si le chemin donné correspond à un répertoire.
- */
 int is_directory(const char *path);
 
-/**
- * Libère récursivement une structure command et ses sous-éléments.
- */
 void free_command(struct command *cmd);
 
-/**
- * Lit une chaîne depuis un descripteur de fichier binaire.
- * Le format attendu est : longueur (uint32_t BE) + octets de la chaîne.
- */
+void free_command_contents(struct command *cmd);
+
 char *read_string_from_fd(int fd);
 
-/**
- * Analyse récursivement une commande à partir d’un chemin de répertoire.
- */
 struct command *parse_command(const char *cmd_path);
 
-/**
- * Parcourt le répertoire /tmp/$USER/erraid/tasks et affiche les tâches trouvées.
- */
-void find_all_tasks(void);
+int parse_timing(const char *task_path, struct timing *task_timing);
 
-/**
- * Exécute une commande simple (SI) et attend son achèvement dans le terminal.
- */
+int compare_tasks(const void *a, const void *b);
+
+struct task *load_all_tasks(size_t *task_count);
+
 int execute_simple_command_in_terminal(struct command *cmd, uint64_t taskid);
 
-/**
- * Exécute une Séquence de Commandes (SQ) de manière séquentielle dans le terminal.
- */
 int execute_sequence_command_in_terminal(struct command *cmd, uint64_t taskid);
 
-/**
- * Fonction récursive principale pour exécuter n'importe quel type de commande.
- */
 int execute_command_in_terminal(struct command *cmd, uint64_t taskid);
+
+int is_time_to_run(struct task *t, struct tm *now);
+
+void log_execution(uint64_t taskid, int exit_code);

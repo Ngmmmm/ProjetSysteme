@@ -1,5 +1,5 @@
 SRC_DIR = src
-BIN_DIR = bin
+BIN_DIR = ./
 
 
 ERRAID_SRCS = $(SRC_DIR)/erraid.c $(SRC_DIR)/utils.c
@@ -26,7 +26,7 @@ $(BIN_DIR)/tadmor: $(TADMOR_SRCS) | $(BIN_DIR)
 
 # Nettoyage complet: efface le répertoire 'bin'
 distclean:
-	rm -rf $(BIN_DIR)
+#	rm -rf $(BIN_DIR)
 	rm -f erraid tadmor
 
 # Test: exécute erraid (après l'avoir compilé)

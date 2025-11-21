@@ -4,7 +4,10 @@ BIN_DIR = ./
 
 ERRAID_SRCS = $(SRC_DIR)/erraid.c $(SRC_DIR)/utils.c
 TADMOR_SRCS = $(SRC_DIR)/tadmor.c $(SRC_DIR)/utils.c
+
 TEST_DIR = /tmp/$(USER)/erraid
+
+all: $(BIN_DIR)/erraid #$(BIN_DIR)/tadmor
 
 
 
@@ -24,10 +27,12 @@ $(BIN_DIR)/erraid: $(ERRAID_SRCS) | $(BIN_DIR)
 $(BIN_DIR)/tadmor: $(TADMOR_SRCS) | $(BIN_DIR)
 	gcc -o $@ $(TADMOR_SRCS)
 
-# Nettoyage complet: efface le répertoire 'bin'
+
+# Nettoyage complet
 distclean:
 #	rm -rf $(BIN_DIR)
 	rm -f erraid tadmor
+
 
 # Test: exécute erraid (après l'avoir compilé)
 test: distclean $(BIN_DIR)/erraid

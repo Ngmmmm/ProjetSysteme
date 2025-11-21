@@ -3,6 +3,7 @@
 #include <stdlib.h>    // getenv
 #include <unistd.h>    // write, STDOUT_FILENO, STDERR_FILENO
 #include <stdint.h>
+#include <time.h>
 
 #define MAX_PATH_LEN 1024
 

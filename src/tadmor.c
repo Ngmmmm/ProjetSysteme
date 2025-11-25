@@ -22,13 +22,13 @@ typedef enum {
  * Affiche l'aide si l'utilisateur se trompe.
  */
 void print_usage(const char *prog_name) {
-    fprintf(stderr, "Usage: %s [options]\n", prog_name);
-    fprintf(stderr, "Options:\n");
-    fprintf(stderr, "  -l          Lister les tâches surveillées.\n");
-    fprintf(stderr, "  -x <id>     Obtenir le dernier code de retour de la tâche <id>.\n");
-    fprintf(stderr, "  -o <id>     Obtenir le chemin du fichier stdout de la tâche <id>.\n");
-    fprintf(stderr, "  -e <id>     Obtenir le chemin du fichier stderr de la tâche <id>.\n");
-    fprintf(stderr, "  -p <dir>    Spécifier le répertoire des tubes nommés.\n");
+    write_error( "Usage: %s [options]\n", prog_name);
+    write_error( "Options:\n");
+    write_error( "  -l          Lister les tâches surveillées.\n");
+    write_error( "  -x <id>     Obtenir le dernier code de retour de la tâche <id>.\n");
+    write_error( "  -o <id>     Obtenir le chemin du fichier stdout de la tâche <id>.\n");
+    write_error( "  -e <id>     Obtenir le chemin du fichier stderr de la tâche <id>.\n");
+    write_error( "  -p <dir>    Spécifier le répertoire des tubes nommés.\n");
 }
 
 int main(int argc, char *argv[]) {

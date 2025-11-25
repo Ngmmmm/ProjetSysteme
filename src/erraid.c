@@ -18,6 +18,8 @@
 // Variable globale pour la racine 
 char g_root_dir[MAX_PATH_LEN];
 
+int g_request_fd;
+
 /**
  * Vérifie si le chemin donné correspond à un répertoire.
  * @param path Le chemin du fichier à vérifier.
@@ -412,6 +414,46 @@ void log_execution(uint64_t taskid, int exit_code) {
     close(fd);
 }
 
+void init_communication() {
+    char pipes_dir[MAX_PATH_LEN];
+    char req_pipe[MAX_PATH_LEN];
+    char rep_pipe[MAX_PATH_LEN];
+
+    // Construction des chemins
+    snprintf(pipes_dir, sizeof(pipes_dir), "%s/pipes", g_root_dir);
+    snprintf(req_pipe, sizeof(req_pipe), "%s/erraid-request-pipe", pipes_dir);
+    snprintf(rep_pipe, sizeof(rep_pipe), "%s/erraid-reply-pipe", pipes_dir);
+
+    // Création du répertoire 'pipes' s'il n'existe pas
+    if (mkdir(pipes_dir, 0755) == -1 && errno != EEXIST) {// 0755 = rwxr-xr-x
+        write_error("Erreur fatale: Impossible de créer le répertoire pipes");
+        exit(EXIT_FAILURE);
+    }
+
+    // Création du tube de requête (erraid-request-pipe)
+    if (mkfifo(req_pipe, 0644) == -1 && errno != EEXIST) {
+        write_error("Erreur fatale: Impossible de créer erraid-request-pipe");
+        exit(EXIT_FAILURE);
+    }
+
+    // Création du tube de réponse (erraid-reply-pipe)
+    if (mkfifo(rep_pipe, 0644) == -1 && errno != EEXIST) {
+        write_error("Erreur fatale: Impossible de créer erraid-reply-pipe");
+        exit(EXIT_FAILURE);
+    }
+
+    // Ouverture du tube de requête en LECTURE
+    // O_NONBLOCK pour éviter que erraid ne se fige indéfiniment ici en attendant
+    // que tadmor ouvre le tube.
+    g_request_fd = open(req_pipe, O_RDONLY | O_NONBLOCK);
+    
+    if (g_request_fd == -1) {
+        write_error("Erreur fatale: Impossible d'ouvrir erraid-request-pipe");
+        exit(EXIT_FAILURE);
+    }
+
+    write_line("Canaux de communication (pipes) initialisés.");
+}
 
 int main(int argc, char *argv[]) {
     // Initialisation du chemin racine par défaut
@@ -432,12 +474,14 @@ int main(int argc, char *argv[]) {
     snprintf(buffer, sizeof(buffer), "=== Démon erraid démarré sur : %s ===", g_root_dir);
     write_line(buffer);
 
+    init_communication();
+
     //  Chargement
     size_t task_count = 0;
     struct task *all_tasks = load_all_tasks(&task_count);
 
     if (all_tasks == NULL && task_count == 0) {
-        write_line("Aucune tâche chargée ou erreur fatale.");
+        perror("Aucune tâche chargée ou erreur fatale.");
 
     }
 
@@ -489,6 +533,9 @@ int main(int argc, char *argv[]) {
         free_command(all_tasks[i].command);
     }
     free(all_tasks);
+    
+    // Fermeture du tube propre en fin de programme (si atteint)
+    if (g_request_fd != -1) close(g_request_fd);
 
     return 0;
 }

@@ -1,7 +1,7 @@
 #define ERRAID_H
 
-#include <stdlib.h>    // getenv
-#include <unistd.h>    // write, STDOUT_FILENO, STDERR_FILENO
+#include <stdlib.h>
+#include <unistd.h>
 #include <stdint.h>
 #include <time.h>
 
@@ -71,3 +71,5 @@ int execute_command_in_terminal(struct command *cmd, uint64_t taskid);
 int is_time_to_run(struct task *t, struct tm *now);
 
 void log_execution(uint64_t taskid, int exit_code);
+
+void init_communication();

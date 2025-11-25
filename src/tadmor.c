@@ -82,31 +82,31 @@ int main(int argc, char *argv[]) {
 
     // Vérification
     if (action == OP_NONE) {
-        fprintf(stderr, "Erreur: Aucune action spécifiée.\n");
+        write_error( "Erreur: Aucune action spécifiée.\n");
         print_usage(argv[0]);
         exit(EXIT_FAILURE);
     }
 
-    // Affichage de DEBUG (Pour valider l'étape 2)
-    // Ici, nous affichons simplement les répertoires des pipes cible.
-    printf("=== DEBUG TADMOR (Client) ===\n");
-    printf("Répertoire des pipes cible : %s\n", pipes_directory);
+    
+    // Affichage répertoires des pipes cible.
+    write_line("DEBUG TADMOR (Client) \n");
+    write_line("Répertoire des pipes cible : %s\n", pipes_directory);
     
     switch (action) {
         case OP_LIST:
-            printf("Action demandée : LISTER les tâches (-l)\n");
+            write_line("Action demandée : LISTER les tâches (-l)\n");
             break;
         case OP_EXIT_CODE:
-            printf("Action demandée : CODE DE RETOUR pour la tâche ID %lu (-x)\n", target_task_id);
+            write_line("Action demandée : CODE DE RETOUR pour la tâche ID %lu (-x)\n", target_task_id);
             break;
         case OP_STDOUT_PATH:
-            printf("Action demandée : CHEMIN STDOUT pour la tâche ID %lu (-o)\n", target_task_id);
+            write_line("Action demandée : CHEMIN STDOUT pour la tâche ID %lu (-o)\n", target_task_id);
             break;
         case OP_STDERR_PATH:
-            printf("Action demandée : CHEMIN STDERR pour la tâche ID %lu (-e)\n", target_task_id);
+            write_line("Action demandée : CHEMIN STDERR pour la tâche ID %lu (-e)\n", target_task_id);
             break;
         default:
-            printf("Action inconnue.\n");
+            write_line("Action inconnue.\n");
     }
 
     return 0;

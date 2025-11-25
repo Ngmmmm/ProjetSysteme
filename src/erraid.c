@@ -20,6 +20,8 @@ char g_root_dir[MAX_PATH_LEN];
 
 /**
  * Vérifie si le chemin donné correspond à un répertoire.
+ * @param path Le chemin du fichier à vérifier.
+ * @return 1 si c'est un répertoire, 0 sinon (y compris en cas d'erreur d'accès).
  */
 int is_directory(const char *path) {
     struct stat st;
@@ -30,7 +32,9 @@ int is_directory(const char *path) {
 }
 
 /**
- * Libère récursivement le contenu d'une struct command.
+ * Libère récursivement les ressources allouées d'une struct command.
+ * @note Libère seulement les champs (argv, subcommands).
+ * @param cmd Pointeur vers la structure à nettoyer (peut être NULL).
  */
 void free_command_contents(struct command *cmd) {
     if (cmd == NULL) return;
@@ -49,7 +53,9 @@ void free_command_contents(struct command *cmd) {
 }
 
 /**
- * Libère toute la mémoire associée à une commande.
+ * Libère toute la mémoire associée à une commande (structure + contenu).
+ * @warning Ne doit être appelée que sur un pointeur reçu de parse_command.
+ * @param cmd La commande à libérer (peut être NULL).
  */
 void free_command(struct command *cmd) {
     if (cmd == NULL) return;
@@ -58,7 +64,9 @@ void free_command(struct command *cmd) {
 }
 
 /**
- * Lit une chaîne depuis un descripteur de fichier.
+ * Lit une chaîne (taille u32be + contenu) depuis fd.
+ * @param fd Descripteur de fichier source.
+ * @return Une chaîne allouée (à libérer) ou NULL si erreur.
  */
 char* read_string_from_fd(int fd) {
     uint32_t str_len;
@@ -92,7 +100,9 @@ char* read_string_from_fd(int fd) {
 }
 
 /**
- * Construit une structure command à partir d'un répertoire.
+ * Construit une structure command à partir d'un répertoire (récursivement pour SQ).
+ * @param cmd_path Chemin du répertoire contenant la définition (fichiers type, argv...).
+ * @return Une commande allouée, ou NULL si il y a une erreur.
  */
 struct command *parse_command(const char *cmd_path) {
     char file_path[MAX_PATH_LEN];
@@ -198,7 +208,10 @@ struct command *parse_command(const char *cmd_path) {
 }
 
 /**
- * Lit le fichier timing.
+ * Lit et parse le fichier 'timing' pour une tâche donnée.
+ * @param task_path Le chemin vers le dossier de la tâche (ex: "/tmp/user/erraid/tasks/10").
+ * @param task_timing Un pointeur vers une struct timing.
+ * @return 0 en cas de succès, -1 en cas d'erreur.
  */
 int parse_timing(const char *task_path, struct timing *task_timing) {
     char timing_path[MAX_PATH_LEN];
@@ -218,7 +231,9 @@ int parse_timing(const char *task_path, struct timing *task_timing) {
 }
 
 /**
- * Comparateur pour qsort.
+ * Fonction de comparaison pour qsort, pour trier les tâches par taskid.
+ * @param a, b Pointeurs vers les structures task.
+ * @return -1 si a < b, 1 si a > b, 0 si égal.
  */
 int compare_tasks(const void *a, const void *b) {
     struct task *taskA = (struct task *)a;
@@ -229,7 +244,9 @@ int compare_tasks(const void *a, const void *b) {
 }
 
 /**
- * Charge toutes les tâches.
+ * Charge toutes les tâches en utilisant un tableau dynamique et les trie par ID.
+ * @param task_count Un pointeur de sortie pour stocker le nombre de tâches trouvées.
+ * @return Un pointeur vers le tableau de 'struct task', ou NULL en cas d'erreur.
  */
 struct task *load_all_tasks(size_t *task_count) {
     char base_dir[MAX_PATH_LEN];
@@ -290,6 +307,13 @@ struct task *load_all_tasks(size_t *task_count) {
 
 int execute_command_in_terminal(struct command *cmd, uint64_t taskid);
 
+/**
+ * Exécute les sous-commandes d'une séquence l'une après l'autre.
+ * S'interrompt immédiatement si une sous-commande échoue.
+ * @param cmd La commande séquence (SQ).
+ * @param taskid Identifiant de la tâche (pour les logs).
+ * @return 0 si tout réussit, ou le code de retour de la commande qui ne fonctionne pas.
+ */
 int execute_sequence_command_in_terminal(struct command *cmd, uint64_t taskid) {
     int last_exit_code = 0;
     if (cmd == NULL || cmd->subcount == 0) return 0;
@@ -301,6 +325,12 @@ int execute_sequence_command_in_terminal(struct command *cmd, uint64_t taskid) {
     return last_exit_code;
 }
 
+/**
+ * Exécute une commande simple (SI) et attend son achèvement.
+ * @param cmd La structure de commande à exécuter (doit être de type "SI").
+ * @param taskid ajout de taskid pour les logs
+ * @return Le code de sortie de la commande 0, ou -1 en cas d'échec de fork.
+ */
 int execute_simple_command_in_terminal(struct command *cmd, uint64_t taskid) { 
     if (cmd == NULL || strcmp(cmd->type, "SI") != 0 || cmd->argc < 1) return -1;
 
@@ -330,6 +360,13 @@ int execute_simple_command_in_terminal(struct command *cmd, uint64_t taskid) {
     }
 }
 
+/**
+ * Fonction pour exécuter n'importe quel type de commande.
+ * La sortie et l'erreur sont maintenant redirigées vers les fichiers.
+ * @param cmd La structure de commande (SI ou SQ).
+ * @param taskid ajout de taskid
+ * @return Le code de sortie final, ou -1 en cas d'erreur.
+ */
 int execute_command_in_terminal(struct command *cmd, uint64_t taskid) { 
     if (!cmd) return -1;
     if (strcmp(cmd->type, "SI") == 0) return execute_simple_command_in_terminal(cmd, taskid);
@@ -337,6 +374,12 @@ int execute_command_in_terminal(struct command *cmd, uint64_t taskid) {
     return -1;
 }
 
+/**
+ * Vérifie si une tâche doit être exécutée maintenant.
+ * @param t La tâche à vérifier.
+ * @param now L'heure actuelle.
+ * @return 1 si c'est l'heure, 0 sinon.
+ */
 int is_time_to_run(struct task *t, struct tm *now) {
     uint64_t min_bit = (uint64_t)1 << now->tm_min;
     uint32_t hour_bit = (uint32_t)1 << now->tm_hour;
@@ -348,6 +391,12 @@ int is_time_to_run(struct task *t, struct tm *now) {
     return 1;
 }
 
+/**
+ * Enregistre le timestamp actuel et le code de sortie dans le journal de la tâche.
+ * Ajoute une entrée binaire au fichier 'times-exitcodes'.
+ * @param taskid Identifiant de la tâche.
+ * @param exit_code Code de retour (enregistré comme 0xFFFF si -1).
+ */
 void log_execution(uint64_t taskid, int exit_code) {
     char log_path[MAX_PATH_LEN];
     snprintf(log_path, MAX_PATH_LEN, "%s/tasks/%lu/times-exitcodes", g_root_dir, taskid);

@@ -481,7 +481,7 @@ int main(int argc, char *argv[]) {
     struct task *all_tasks = load_all_tasks(&task_count);
 
     if (all_tasks == NULL && task_count == 0) {
-        perror("Aucune tâche chargée ou erreur fatale.");
+        write_error("Aucune tâche chargée ou erreur fatale.");
 
     }
 

@@ -5,30 +5,80 @@
 #include <getopt.h>
 #include <stdint.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <endian.h>
+#include "../include/erraid.h"
+#include "../include/utils.h"
 
 // Définition de la longueur maximale des chemins (comme dans erraid)
 #define MAX_PATH_LEN 1024
 
 // Codes des opérations possibles (Opcode)
 typedef enum {
-    OP_NONE = 0,
-    OP_LIST,            // -l
-    OP_EXIT_CODE,       // -x
-    OP_STDOUT_PATH,     // -o
-    OP_STDERR_PATH      // -e
-} OpCode;
+    ACTION_NONE = 0,
+    ACTION_LIST,            // -l
+    ACTION_EXIT_CODE,       // -x
+    ACTION_STDOUT,          // -o
+    ACTION_STDERR           // -e
+} ActionType;
 
 /**
  * Affiche l'aide si l'utilisateur se trompe.
  */
 void print_usage(const char *prog_name) {
-    write_error( "Usage: %s [options]\n", prog_name);
-    write_error( "Options:\n");
-    write_error( "  -l          Lister les tâches surveillées.\n");
-    write_error( "  -x <id>     Obtenir le dernier code de retour de la tâche <id>.\n");
-    write_error( "  -o <id>     Obtenir le chemin du fichier stdout de la tâche <id>.\n");
-    write_error( "  -e <id>     Obtenir le chemin du fichier stderr de la tâche <id>.\n");
-    write_error( "  -p <dir>    Spécifier le répertoire des tubes nommés.\n");
+    write_error("Usage: "); write_error(prog_name); write_error(" [options]\n");
+    write_error("Options:\n");
+    write_error("  -l          Lister les tâches.\n");
+    write_error("  -x <id>     Lister les codes de retour de la tâche <id>.\n");
+    write_error("  -o <id>     Afficher stdout de la tâche <id>.\n");
+    write_error("  -e <id>     Afficher stderr de la tâche <id>.\n");
+    write_error("  -p <dir>    Répertoire des tubes nommés.\n");
+}
+
+
+
+/**
+ * Envoie une requête simple au démon via le tube nommé.
+ * Gère l'ouverture, l'écriture et la fermeture du tube.
+ */
+int send_request(const char *pipes_dir, uint16_t opcode, uint64_t taskid) {
+    char req_pipe_path[MAX_PATH_LEN];
+    snprintf(req_pipe_path, sizeof(req_pipe_path), "%s/erraid-request-pipe", pipes_dir);
+
+    //Ouverture du tube en écriture
+    int fd = open(req_pipe_path, O_WRONLY);
+    if (fd == -1) {
+        write_error("Erreur: Impossible d'ouvrir le tube de requête ");
+        return -1;
+    }
+
+    //  Préparation du buffer
+    // La taille max est OPCODE (2) + TASKID (8) = 10 octets
+    uint8_t buffer[10];
+    int msg_len = 0;
+
+    // Écriture de l'OPCODE (toujours présent)
+    uint16_t op_be = htobe16(opcode);  // Convertit l'opcode en big-endian
+    memcpy(buffer, &op_be, sizeof(uint16_t));
+    msg_len += sizeof(uint16_t);
+
+    // Écriture du TASKID (si nécessaire)
+    // Pour LIST, on n'envoie que l'opcode. Pour les autres, on ajoute l'ID.
+    if (opcode != OPCODE_LIST && opcode != OPCODE_TERMINATE) {
+        uint64_t id_be = htobe64(taskid);
+        memcpy(buffer + msg_len, &id_be, sizeof(uint64_t));
+        msg_len += sizeof(uint64_t);
+    }
+
+    // Envoi
+    if (write(fd, buffer, msg_len) == -1) {
+        write_error("Erreur: Échec de l'envoi de la requête");
+        close(fd);
+        return -1;
+    }
+
+    close(fd);
+    return 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -36,7 +86,7 @@ int main(int argc, char *argv[]) {
     char pipes_directory[MAX_PATH_LEN];
     
     // Variables pour stocker la requête
-    OpCode action = OP_NONE;
+    ActionType action = ACTION_NONE;
     uint64_t target_task_id = 0;
 
     // Déterminer le répertoire par défaut des pipes (/tmp/$USER/erraid/pipes)
@@ -50,21 +100,21 @@ int main(int argc, char *argv[]) {
     while ((opt = getopt(argc, argv, "lx:o:e:p:")) != -1) {
         switch (opt) {
             case 'l':
-                action = OP_LIST;
+                action = ACTION_LIST;
                 break;
 
             case 'x':
-                action = OP_EXIT_CODE;
+                action = ACTION_EXIT_CODE;
                 target_task_id = strtoull(optarg, NULL, 10);
                 break;
 
             case 'o':
-                action = OP_STDOUT_PATH;
+                action = ACTION_STDOUT;
                 target_task_id = strtoull(optarg, NULL, 10);
                 break;
 
             case 'e':
-                action = OP_STDERR_PATH;
+                action = ACTION_STDERR;
                 target_task_id = strtoull(optarg, NULL, 10);
                 break;
 
@@ -81,33 +131,46 @@ int main(int argc, char *argv[]) {
     }
 
     // Vérification
-    if (action == OP_NONE) {
+    if (action == ACTION_NONE) {
         write_error( "Erreur: Aucune action spécifiée.\n");
         print_usage(argv[0]);
         exit(EXIT_FAILURE);
     }
 
-    
-    // Affichage répertoires des pipes cible.
-    write_line("DEBUG TADMOR (Client) \n");
-    write_line("Répertoire des pipes cible : %s\n", pipes_directory);
-    
+    // Détermination de l'Opcode protocolaire
+    uint16_t opcode = 0;
     switch (action) {
-        case OP_LIST:
-            write_line("Action demandée : LISTER les tâches (-l)\n");
+        case ACTION_LIST:
+            opcode = OPCODE_LIST;
             break;
-        case OP_EXIT_CODE:
-            write_line("Action demandée : CODE DE RETOUR pour la tâche ID %lu (-x)\n", target_task_id);
+        case ACTION_EXIT_CODE:
+            opcode = OPCODE_TIMES_EXITCODES;
             break;
-        case OP_STDOUT_PATH:
-            write_line("Action demandée : CHEMIN STDOUT pour la tâche ID %lu (-o)\n", target_task_id);
+        case ACTION_STDOUT:
+            opcode = OPCODE_STDOUT;
             break;
-        case OP_STDERR_PATH:
-            write_line("Action demandée : CHEMIN STDERR pour la tâche ID %lu (-e)\n", target_task_id);
+        case ACTION_STDERR:
+            opcode = OPCODE_STDERR;
             break;
         default:
             write_line("Action inconnue.\n");
+            break;
     }
+
+
+
+
+    // Envoi de la requête
+    char msg[256];
+    snprintf(msg, sizeof(msg), "Envoi requête vers %s...", pipes_directory);
+    write_line(msg);
+
+    if (send_request(pipes_directory, opcode, target_task_id) == 0) {
+        write_line("Requête envoyée avec succès !");
+        // TODO : Attendre et lire la réponse
+        write_line("(Attente de la réponse non implémentée pour l'instant)");
+    }
+
 
     return 0;
 }

@@ -7,11 +7,14 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <endian.h>
+#include <time.h>
 #include "../include/erraid.h"
 #include "../include/utils.h"
 
 // Définition de la longueur maximale des chemins (comme dans erraid)
 #define MAX_PATH_LEN 1024
+#define ANS_OK 0x4f4b // "OK"
+#define ANS_ERR 0x4552 // "ER"
 
 // Codes des opérations possibles (Opcode)
 typedef enum {
@@ -80,6 +83,152 @@ int send_request(const char *pipes_dir, uint16_t opcode, uint64_t taskid) {
     close(fd);
     return 0;
 }
+
+ssize_t read_full(int fd, void *buf, size_t count) {
+    size_t total_read = 0;
+    while (total_read < count) {
+        ssize_t n = read(fd, (char *)buf + total_read, count - total_read);
+        if (n == -1) return -1;
+        if (n == 0) return total_read; 
+        total_read += n;
+    }
+    return total_read;
+}
+
+void handle_list_reponse(int fd) {
+    uint16_t nb_tasks_be;
+    if (read_full(fd, &nb_tasks_be, sizeof(uint16_t)) != sizeof(uint16_t)) return;
+    uint16_t nb_tasks = be16toh(nb_tasks_be);
+
+    char buf[512]; 
+
+    snprintf(buf, sizeof(buf), "--- Liste des Tâches (%d) ---", nb_tasks);
+    write_line(buf);
+
+    snprintf(buf, sizeof(buf), "%-5s | %-19s | %s", "ID", "Timing", "Commande");
+    write_line(buf);
+    
+
+    for (int i = 0; i < nb_tasks; i++) {
+        uint64_t id_be, timing_be;
+        uint16_t cmd_len_be;
+
+        read_full(fd, &id_be, sizeof(uint64_t));
+        read_full(fd, &timing_be, sizeof(uint64_t));
+        read_full(fd, &cmd_len_be, sizeof(uint16_t));
+
+        uint16_t cmd_len = be16toh(cmd_len_be);
+        char cmd_buf[cmd_len + 1];
+        read_full(fd, cmd_buf, cmd_len);
+        cmd_buf[cmd_len] = '\0';
+
+        snprintf(buf, sizeof(buf), "%-5lu | 0x%016lx  | %s", 
+                       be64toh(id_be), be64toh(timing_be), cmd_buf);
+        write_line(buf);
+    }
+}
+
+void handle_runs_reponse(int fd) {
+    uint16_t nb_runs_be;
+    if (read_full(fd, &nb_runs_be, sizeof(uint16_t)) != sizeof(uint16_t)) return;
+    uint16_t nb_runs = be16toh(nb_runs_be);
+
+    char buf[512];
+    snprintf(buf, sizeof(buf), "Historique d'exécution (%d runs)", nb_runs);
+    write_line(buf);
+
+    write_line("Date                      | Code Retour");
+
+    for (int i = 0; i < nb_runs; i++) {
+        int64_t time_val_be;
+        uint16_t exit_code_be;
+
+        read_full(fd, &time_val_be, sizeof(int64_t));
+        read_full(fd, &exit_code_be, sizeof(uint16_t));
+
+        time_t timestamp = (time_t)be64toh(time_val_be);
+        uint16_t code = be16toh(exit_code_be);
+
+        char *date_str = ctime(&timestamp);
+        if (date_str) date_str[strlen(date_str) - 1] = '\0';
+
+        snprintf(buf, sizeof(buf), "%-25s | %d", date_str ? date_str : "Inconnu", code);
+        write_line(buf);
+    }
+}
+
+void handle_output_reponse(int fd) {
+    uint32_t len_be;
+    if (read_full(fd, &len_be, sizeof(uint32_t)) != sizeof(uint32_t)) return;
+    uint32_t len = be32toh(len_be);
+
+    char buf[512];
+    snprintf(buf, sizeof(buf), "Sortie Standard/Erreur (%u octets)", len);
+    write_line(buf);
+    
+    char content_buf[1024];
+    uint32_t remaining = len;
+    while (remaining > 0) {
+        int to_read = (remaining > sizeof(content_buf)) ? sizeof(content_buf) : remaining;
+        int n = read(fd, content_buf, to_read);
+        if (n <= 0) break;
+        write(STDOUT_FILENO, content_buf, n);
+        remaining -= n;
+    }
+    
+}
+
+//Fonction Principale appelée par le main
+
+int read_response(const char *pipes_dir, uint16_t original_opcode) {
+    char reply_pipe_path[MAX_PATH_LEN];
+    snprintf(reply_pipe_path, sizeof(reply_pipe_path), "%s/erraid-reply-pipe", pipes_dir);
+
+    //Ouverture (Bloquant)
+    int fd = open(reply_pipe_path, O_RDONLY);
+    if (fd == -1) {
+        perror("open reply pipe"); 
+        return -1;
+    }
+
+    //Lecture Header
+    uint16_t anstype_be;
+    if (read_full(fd, &anstype_be, sizeof(uint16_t)) != sizeof(uint16_t)) {
+        write_line("Erreur: Réponse vide ou connexion fermée.");
+        close(fd);
+        return -1;
+    }
+    uint16_t anstype = be16toh(anstype_be);
+
+    //Dispatch
+    if (anstype == ANS_ERR) {
+        uint16_t errcode_be;
+        read_full(fd, &errcode_be, sizeof(uint16_t));
+        
+        char buf[64];
+        snprintf(buf, sizeof(buf), "Erreur reçue du démon (Code: %04x)", be16toh(errcode_be));
+        write_line(buf);
+    } 
+    else if (anstype == ANS_OK) {
+        switch (original_opcode) {
+            case OPCODE_LIST: handle_list_reponse(fd); break;
+            case OPCODE_TIMES_EXITCODES: handle_runs_reponse(fd); break;
+            case OPCODE_STDOUT:
+            case OPCODE_STDERR: handle_output_reponse(fd); break;
+            default: write_line("Réponse OK mais opcode inconnu.");
+        }
+    } else {
+        write_line("Type de réponse inconnu.");
+    }
+
+    close(fd);
+    return 0;
+}
+
+
+
+
+
 
 int main(int argc, char *argv[]) {
     int opt;
@@ -168,7 +317,8 @@ int main(int argc, char *argv[]) {
     if (send_request(pipes_directory, opcode, target_task_id) == 0) {
         write_line("Requête envoyée avec succès !");
         // TODO : Attendre et lire la réponse
-        write_line("(Attente de la réponse non implémentée pour l'instant)");
+        write_line("Attente de la réponse non implémentée pour l'instant");
+        read_response(pipes_directory, opcode);
     }
 
 

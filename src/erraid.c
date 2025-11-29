@@ -424,28 +424,26 @@ void init_communication() {
     snprintf(req_pipe, sizeof(req_pipe), "%s/erraid-request-pipe", pipes_dir);
     snprintf(rep_pipe, sizeof(rep_pipe), "%s/erraid-reply-pipe", pipes_dir);
 
-    // Création du répertoire 'pipes' s'il n'existe pas
+    // Création du répertoire pipes s'il n'existe pas
     if (mkdir(pipes_dir, 0755) == -1 && errno != EEXIST) {// 0755 = rwxr-xr-x
         write_error("Erreur fatale: Impossible de créer le répertoire pipes");
         exit(EXIT_FAILURE);
     }
 
-    // Création du tube de requête (erraid-request-pipe)
+    // Création du tube de requête
     if (mkfifo(req_pipe, 0644) == -1 && errno != EEXIST) {
         write_error("Erreur fatale: Impossible de créer erraid-request-pipe");
         exit(EXIT_FAILURE);
     }
 
-    // Création du tube de réponse (erraid-reply-pipe)
+    // Création du tube de réponse
     if (mkfifo(rep_pipe, 0644) == -1 && errno != EEXIST) {
         write_error("Erreur fatale: Impossible de créer erraid-reply-pipe");
         exit(EXIT_FAILURE);
     }
 
     // Ouverture du tube de requête en LECTURE
-    // O_NONBLOCK pour éviter que erraid ne se fige indéfiniment ici en attendant
-    // que tadmor ouvre le tube.
-    g_request_fd = open(req_pipe, O_RDONLY | O_NONBLOCK);
+    g_request_fd = open(req_pipe, O_RDWR);
     
     if (g_request_fd == -1) {
         write_error("Erreur fatale: Impossible d'ouvrir erraid-request-pipe");
@@ -494,47 +492,80 @@ int main(int argc, char *argv[]) {
     write_line("Synchronisation horloge...");
     sleep(seconds_to_wait);
 
-    // Boucle Principale 
     while (1) {
-        time_t loop_start_time = time(NULL);
-        struct tm *local_now = localtime(&loop_start_time);
+        //Calcul du temps restant avant la prochaine minute
+        time_t now = time(NULL);
+        struct tm *tm_now = localtime(&now);
+        int seconds_to_wait = 60 - tm_now->tm_sec;
 
-        for (size_t i = 0; i < task_count; i++) {
-            struct task *t = &all_tasks[i];
-            
-            if (is_time_to_run(t, local_now)) {
-                snprintf(buffer, sizeof(buffer), "Exécution de la tâche ID %lu...", t->taskid);
-                write_line(buffer);
+        // Configuration du timeout pour select
+        struct timeval timeout;
+        timeout.tv_sec = seconds_to_wait;
+        timeout.tv_usec = 0;
 
-                // Vider les logs AVANT l'exécution
-                char p_out[MAX_PATH_LEN], p_err[MAX_PATH_LEN];
-                snprintf(p_out, MAX_PATH_LEN, "%s/tasks/%lu/stdout", g_root_dir, t->taskid);
-                snprintf(p_err, MAX_PATH_LEN, "%s/tasks/%lu/stderr", g_root_dir, t->taskid);
-                
-                int fd_trunc;
-                fd_trunc = open(p_out, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-                if (fd_trunc != -1) close(fd_trunc);
-                fd_trunc = open(p_err, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-                if (fd_trunc != -1) close(fd_trunc);
+        //Préparation des descripteurs à surveiller
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(g_request_fd, &readfds);
 
+        // Appel bloquant à select
+        // Il se réveillera soit au Timeout (nouvelle minute), soit si tadmor parle.
+        int ret = select(g_request_fd + 1, &readfds, NULL, NULL, &timeout);
 
-                int exit_code = execute_command_in_terminal(t->command, t->taskid);
-                log_execution(t->taskid, exit_code);
-            }
+        if (ret == -1) {
+            if (errno == EINTR) continue; 
+            perror("select");
+            break;
         }
 
+        //CAS 1
+        if (ret == 0) {
+            // On rafraîchit l'heure car select a attendu
+            time_t sched_time = time(NULL);
+            struct tm *sched_tm = localtime(&sched_time);
 
-        time_t now = time(NULL);
-        sleep(60 - (now % 60));
+            for (size_t i = 0; i < task_count; i++) {
+                struct task *t = &all_tasks[i];
+                
+                if (is_time_to_run(t, sched_tm)) {
+                    snprintf(buffer, sizeof(buffer), "Exécution de la tâche ID %lu...", t->taskid);
+                    write_line(buffer);
+
+                    // Chemins logs
+                    char p_out[MAX_PATH_LEN], p_err[MAX_PATH_LEN];
+                    snprintf(p_out, MAX_PATH_LEN, "%s/tasks/%lu/stdout", g_root_dir, t->taskid);
+                    snprintf(p_err, MAX_PATH_LEN, "%s/tasks/%lu/stderr", g_root_dir, t->taskid);
+                    
+                    // Truncate logs
+                    close(open(p_out, O_WRONLY | O_CREAT | O_TRUNC, 0644));
+                    close(open(p_err, O_WRONLY | O_CREAT | O_TRUNC, 0644));
+
+                    int exit_code = execute_command_in_terminal(t->command, t->taskid);
+                    log_execution(t->taskid, exit_code);
+                }
+            }
+            
+            // Sécurité pour éviter de relancer deux fois dans la même seconde 
+            // si le calcul est trop rapide
+            sleep(1); 
+        }
+
+        //CAS 2
+        else if (FD_ISSET(g_request_fd, &readfds)) {
+            write_line("Requête reçue du client !");
+            
+            // TODO: Appeler handle_client_request ici.
+            // Pour l'instant, on vide le tube pour ne pas boucler indéfiniment
+            char dummy_buf[1024];
+            read(g_request_fd, dummy_buf, sizeof(dummy_buf));
+        }
     }
 
-
+    // Nettoyage
     for (size_t i = 0; i < task_count; i++) {
         free_command(all_tasks[i].command);
     }
     free(all_tasks);
-    
-    // Fermeture du tube propre en fin de programme (si atteint)
     if (g_request_fd != -1) close(g_request_fd);
 
     return 0;

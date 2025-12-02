@@ -110,6 +110,24 @@ void print_command(struct command *cmd, int indent) {
     }
 }
 
+void serialize_command_to_buffer(struct command *cmd, char *buffer, size_t size) {
+    if (strlen(buffer) >= size - 1) return; 
+    
+    if (strcmp(cmd->type, "SI") == 0) {
+        for (int i = 0; i < cmd->argc; i++) {
+            strncat(buffer, cmd->argv[i], size - strlen(buffer) - 1);
+            if (i < cmd->argc - 1) strncat(buffer, " ", size - strlen(buffer) - 1);
+        }
+    } else {
+        strncat(buffer, "(", size - strlen(buffer) - 1);
+        for (size_t i = 0; i < cmd->subcount; i++) {
+            serialize_command_to_buffer(&cmd->subcommands[i], buffer, size);
+            if (i < cmd->subcount - 1) strncat(buffer, "; ", size - strlen(buffer) - 1);
+        }
+        strncat(buffer, ")", size - strlen(buffer) - 1);
+    }
+}
+
 int read_u8(int fd, uint8_t *val) {
     ssize_t bytes_read = read(fd, val, sizeof(*val));
     if (bytes_read == -1) return -1;

@@ -7,31 +7,7 @@
 
 
 
-// Opcodes pour les requêtes (Client -> Démon)
-#define OPCODE_LIST            0x4c53 // 'LS'
-#define OPCODE_CREATE          0x4352 // 'CR'
-#define OPCODE_COMBINE         0x4342 // 'CB'
-#define OPCODE_REMOVE          0x524d // 'RM'
-#define OPCODE_TIMES_EXITCODES 0x5458 // 'TX'
-#define OPCODE_STDOUT          0x534f // 'SO'
-#define OPCODE_STDERR          0x5345 // 'SE'
-#define OPCODE_TERMINATE       0x4b49 // 'TM'
 
-// Codes de réponse (Démon -> Client) 
-#define ANSTYPE_OK             0x4f4b // 'OK'
-#define ANSTYPE_ERR            0x4552 // 'ER'
-
-// Codes d'erreur
-#define ERRCODE_NOT_FOUND      0x4e46 // 'NF'
-#define ERRCODE_NO_RUN         0x4e52 // 'NR'
-
-
-
-#define MAX_PATH_LEN 1024
-
-// Signatures binaires pour les types de commandes (utilisées dans parse_command)
-#define FILE_TYPE_SI 0x5349 // 'SI' 
-#define FILE_TYPE_SQ 0x5351 // 'SQ' 
 
 /**
  * Structure de planification lue depuis le fichier 'timing'.
@@ -95,3 +71,5 @@ int is_time_to_run(struct task *t, struct tm *now);
 void log_execution(uint64_t taskid, int exit_code);
 
 void init_communication();
+
+void serialize_command_to_buffer(struct command *cmd, char *buffer, size_t buf_size);

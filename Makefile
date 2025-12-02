@@ -14,11 +14,11 @@ $(BIN_DIR):
 
 # Règle pour erraid:
 $(BIN_DIR)/erraid: $(ERRAID_SRCS) | $(BIN_DIR)
-	gcc -o $@ $(ERRAID_SRCS)
+	gcc -Wno-format-truncation -o $@ $(ERRAID_SRCS)
 
 # Règle pour tadmor:
 $(BIN_DIR)/tadmor: $(TADMOR_SRCS) | $(BIN_DIR)
-	gcc -o $@ $(TADMOR_SRCS)
+	gcc -Wno-format-truncation -o $@ $(TADMOR_SRCS)
 
 # Nettoyage
 distclean:

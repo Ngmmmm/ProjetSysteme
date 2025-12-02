@@ -12,6 +12,7 @@
 #include <time.h>
 #include <endian.h>
 #include <getopt.h> 
+#include <ctype.h>
 #include <sys/select.h>
 
 // Variable globale pour la racine 
@@ -115,7 +116,6 @@ struct command *parse_command(const char *cmd_path) {
     }
     memset(cmd, 0, sizeof(struct command));
 
-    // Lire le type
     snprintf(file_path, MAX_PATH_LEN, "%s/type", cmd_path);
     fd = open(file_path, O_RDONLY);
     if (fd == -1) {
@@ -451,6 +451,66 @@ void init_communication() {
     write_line("Canaux de communication (pipes) initialisés.");
 }
 
+
+void handle_client_request(int req_fd, struct task *tasks, size_t task_count) {
+
+    uint16_t opcode_be;
+    if (read(req_fd, &opcode_be, 2) <= 0) return;
+    uint16_t opcode = be16toh(opcode_be);
+
+    char rep_path[MAX_PATH_LEN];
+    snprintf(rep_path, MAX_PATH_LEN, "%s/pipes/erraid-reply-pipe", g_root_dir);
+    int rep_fd = open(rep_path, O_WRONLY);
+    if (rep_fd == -1) {
+        // Client parti ? On vide les arguments potentiels
+        if (opcode != OPCODE_LIST && opcode != OPCODE_TERMINATE) {
+            uint64_t trash; read(req_fd, &trash, 8);
+        }
+        return; 
+    }
+
+    uint16_t ans_ok = htobe16(ANSTYPE_OK);
+    uint16_t ans_err = htobe16(ANSTYPE_ERR);
+    uint16_t err_nf = htobe16(ERRCODE_NOT_FOUND);
+    uint16_t err_nr = htobe16(ERRCODE_NO_RUN);
+
+
+    // --- LIST (-l) ---
+    if (opcode == OPCODE_LIST) {
+        write(rep_fd, &ans_ok, 2);
+        uint32_t nb = htobe32((uint32_t)task_count);
+        write(rep_fd, &nb, 4);
+
+        for (size_t i = 0; i < task_count; i++) {
+            uint64_t id = htobe64(tasks[i].taskid);
+            uint64_t min = htobe64(tasks[i].timing.minutes);
+            uint32_t hour = htobe32(tasks[i].timing.hours);
+            
+            write(rep_fd, &id, 8);
+            write(rep_fd, &min, 8);
+            write(rep_fd, &hour, 4);
+            write(rep_fd, &tasks[i].timing.daysofweek, 1);
+
+            char cmd_str[2048] = "";
+            serialize_command_to_buffer(tasks[i].command, cmd_str, sizeof(cmd_str));
+            uint32_t len = htobe32(strlen(cmd_str));
+            write(rep_fd, &len, 4);
+            write(rep_fd, cmd_str, strlen(cmd_str));
+        }
+    } 
+
+    //a continuer 
+
+
+
+
+
+}
+
+
+
+
+
 int main(int argc, char *argv[]) {
     // Initialisation du chemin racine par défaut
     const char *user = getenv("USER");
@@ -555,10 +615,7 @@ int main(int argc, char *argv[]) {
         else if (FD_ISSET(g_request_fd, &readfds)) {
             write_line("Requête reçue du client !");
             
-            // TODO: Appeler handle_client_request ici.
-            // Pour l'instant, on vide le tube pour ne pas boucler indéfiniment
-            char dummy_buf[1024];
-            read(g_request_fd, dummy_buf, sizeof(dummy_buf));
+            handle_client_request(g_request_fd, all_tasks, task_count);
         }
     }
 

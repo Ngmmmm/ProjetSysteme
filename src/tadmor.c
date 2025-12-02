@@ -14,6 +14,8 @@
 #include <time.h>
 
 
+
+
 // Codes des opérations possibles (Opcode)
 typedef enum {
     ACTION_NONE = 0,
@@ -94,35 +96,30 @@ ssize_t read_full(int fd, void *buf, size_t count) {
 }
 
 void handle_list_reponse(int fd) {
-    uint16_t nb_tasks_be;
-    if (read_full(fd, &nb_tasks_be, sizeof(uint16_t)) != sizeof(uint16_t)) return;
-    uint16_t nb_tasks = be16toh(nb_tasks_be);
+    uint32_t nb_tasks_be; // Le démon envoie 32 bits pour le nombre de tâches
+    if (read_full(fd, &nb_tasks_be, 4) != 4) return;
+    uint32_t nb_tasks = be32toh(nb_tasks_be);
 
-    char buf[512]; 
+    printf("--- Liste des Tâches (%u) ---\n", nb_tasks);
 
-    snprintf(buf, sizeof(buf), "--- Liste des Tâches (%d) ---", nb_tasks);
-    write_line(buf);
+    for (uint32_t i = 0; i < nb_tasks; i++) {
+        uint64_t id_be, min_be;
+        uint32_t hour_be, len_be;
+        uint8_t day;
 
-    snprintf(buf, sizeof(buf), "%-5s | %-19s | %s", "ID", "Timing", "Commande");
-    write_line(buf);
-    
+        read_full(fd, &id_be, 8);
+        read_full(fd, &min_be, 8);
+        read_full(fd, &hour_be, 4);
+        read_full(fd, &day, 1);
+        read_full(fd, &len_be, 4); // Longueur string = 4 octets
 
-    for (int i = 0; i < nb_tasks; i++) {
-        uint64_t id_be, timing_be;
-        uint16_t cmd_len_be;
+        uint32_t len = be32toh(len_be);
+        char *cmd_buf = malloc(len + 1);
+        read_full(fd, cmd_buf, len);
+        cmd_buf[len] = '\0';
 
-        read_full(fd, &id_be, sizeof(uint64_t));
-        read_full(fd, &timing_be, sizeof(uint64_t));
-        read_full(fd, &cmd_len_be, sizeof(uint16_t));
-
-        uint16_t cmd_len = be16toh(cmd_len_be);
-        char cmd_buf[cmd_len + 1];
-        read_full(fd, cmd_buf, cmd_len);
-        cmd_buf[cmd_len] = '\0';
-
-        snprintf(buf, sizeof(buf), "%-5lu | 0x%016lx  | %s", 
-                       be64toh(id_be), be64toh(timing_be), cmd_buf);
-        write_line(buf);
+        printf("ID: %lu | %s\n", be64toh(id_be), cmd_buf);
+        free(cmd_buf);
     }
 }
 
@@ -177,7 +174,6 @@ void handle_output_reponse(int fd) {
 }
 
 //Fonction Principale appelée par le main
-
 int read_response(const char *pipes_dir, uint16_t original_opcode) {
     char reply_pipe_path[MAX_PATH_LEN];
     snprintf(reply_pipe_path, sizeof(reply_pipe_path), "%s/erraid-reply-pipe", pipes_dir);
@@ -314,9 +310,7 @@ int main(int argc, char *argv[]) {
 
     if (send_request(pipes_directory, opcode, target_task_id) == 0) {
         write_line("Requête envoyée avec succès !");
-        // TODO : Attendre et lire la réponse
-        write_line("Attente de la réponse non implémentée pour l'instant");
-        //read_response(pipes_directory, opcode);
+        read_response(pipes_directory, opcode);
     }
 
 

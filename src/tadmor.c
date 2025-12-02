@@ -1,3 +1,7 @@
+#include "../include/erraid.h"
+#include "../include/utils.h"
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -8,13 +12,7 @@
 #include <fcntl.h>
 #include <endian.h>
 #include <time.h>
-#include "../include/erraid.h"
-#include "../include/utils.h"
 
-// Définition de la longueur maximale des chemins (comme dans erraid)
-#define MAX_PATH_LEN 1024
-#define ANS_OK 0x4f4b // "OK"
-#define ANS_ERR 0x4552 // "ER"
 
 // Codes des opérations possibles (Opcode)
 typedef enum {
@@ -201,7 +199,7 @@ int read_response(const char *pipes_dir, uint16_t original_opcode) {
     uint16_t anstype = be16toh(anstype_be);
 
     //Dispatch
-    if (anstype == ANS_ERR) {
+    if (anstype == ANSTYPE_ERR) {
         uint16_t errcode_be;
         read_full(fd, &errcode_be, sizeof(uint16_t));
         
@@ -209,7 +207,7 @@ int read_response(const char *pipes_dir, uint16_t original_opcode) {
         snprintf(buf, sizeof(buf), "Erreur reçue du démon (Code: %04x)", be16toh(errcode_be));
         write_line(buf);
     } 
-    else if (anstype == ANS_OK) {
+    else if (anstype == ANSTYPE_OK) {
         switch (original_opcode) {
             case OPCODE_LIST: handle_list_reponse(fd); break;
             case OPCODE_TIMES_EXITCODES: handle_runs_reponse(fd); break;
@@ -318,7 +316,7 @@ int main(int argc, char *argv[]) {
         write_line("Requête envoyée avec succès !");
         // TODO : Attendre et lire la réponse
         write_line("Attente de la réponse non implémentée pour l'instant");
-        read_response(pipes_directory, opcode);
+        //read_response(pipes_directory, opcode);
     }
 
 

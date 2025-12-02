@@ -8,16 +8,14 @@
 #include <errno.h>     
 #include <stdio.h>    
 #include <fcntl.h> 
-#include <ctype.h>
-#include <stddef.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <endian.h>
 #include <getopt.h> 
+#include <sys/select.h>
 
 // Variable globale pour la racine 
 char g_root_dir[MAX_PATH_LEN];
-
 int g_request_fd;
 
 /**
@@ -469,7 +467,7 @@ int main(int argc, char *argv[]) {
     }
 
     char buffer[MAX_PATH_LEN + 64];
-    snprintf(buffer, sizeof(buffer), "=== Démon erraid démarré sur : %s ===", g_root_dir);
+    snprintf(buffer, sizeof(buffer), " Démon erraid démarré sur : %s ", g_root_dir);
     write_line(buffer);
 
     init_communication();
@@ -498,15 +496,18 @@ int main(int argc, char *argv[]) {
         struct tm *tm_now = localtime(&now);
         int seconds_to_wait = 60 - tm_now->tm_sec;
 
+        //Préparation des descripteurs à surveiller
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(g_request_fd, &readfds);
+
+
         // Configuration du timeout pour select
         struct timeval timeout;
         timeout.tv_sec = seconds_to_wait;
         timeout.tv_usec = 0;
 
-        //Préparation des descripteurs à surveiller
-        fd_set readfds;
-        FD_ZERO(&readfds);
-        FD_SET(g_request_fd, &readfds);
+
 
         // Appel bloquant à select
         // Il se réveillera soit au Timeout (nouvelle minute), soit si tadmor parle.

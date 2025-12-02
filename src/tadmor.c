@@ -96,29 +96,47 @@ ssize_t read_full(int fd, void *buf, size_t count) {
 }
 
 void handle_list_reponse(int fd) {
-    uint32_t nb_tasks_be; // Le démon envoie 32 bits pour le nombre de tâches
+    uint32_t nb_tasks_be; 
     if (read_full(fd, &nb_tasks_be, 4) != 4) return;
     uint32_t nb_tasks = be32toh(nb_tasks_be);
 
     printf("--- Liste des Tâches (%u) ---\n", nb_tasks);
+    
+    // On ajoute un en-tête pour que ce soit lisible
+    // %-5s = aligné à gauche sur 5 espaces
+    // %-30s = aligné à gauche pour le timing
+    printf("%-5s | %-30s | %s\n", "ID", "Timing (Min/H/Jr)", "Commande");
+    printf("----------------------------------------------------------\n");
 
     for (uint32_t i = 0; i < nb_tasks; i++) {
         uint64_t id_be, min_be;
         uint32_t hour_be, len_be;
         uint8_t day;
 
-        read_full(fd, &id_be, 8);
-        read_full(fd, &min_be, 8);
-        read_full(fd, &hour_be, 4);
-        read_full(fd, &day, 1);
-        read_full(fd, &len_be, 4); // Longueur string = 4 octets
+        // Lecture des données brutes (Big Endian)
+        read_full(fd, &id_be, 8); // id
+        read_full(fd, &min_be, 8); // minute
+        read_full(fd, &hour_be, 4); // heure
+        read_full(fd, &day, 1); // jour
+        read_full(fd, &len_be, 4); // 
 
         uint32_t len = be32toh(len_be);
         char *cmd_buf = malloc(len + 1);
         read_full(fd, cmd_buf, len);
         cmd_buf[len] = '\0';
 
-        printf("ID: %lu | %s\n", be64toh(id_be), cmd_buf);
+        // Conversion Big Endian -> Hôte
+        uint64_t id = be64toh(id_be);
+        uint64_t mins = be64toh(min_be);
+        uint32_t hours = be32toh(hour_be);
+        // day est sur 1 octet, pas de conversion endian
+
+        char timing_str[64];
+
+        // Affichage
+        // On affiche Min, Heures et Jours
+        snprintf(timing_str, sizeof(timing_str), "0x%016lx", mins);
+        printf("%-5lu | %-30s | %s\n", id, timing_str, cmd_buf);
         free(cmd_buf);
     }
 }

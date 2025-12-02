@@ -462,7 +462,7 @@ void handle_client_request(int req_fd, struct task *tasks, size_t task_count) {
     snprintf(rep_path, MAX_PATH_LEN, "%s/pipes/erraid-reply-pipe", g_root_dir);
     int rep_fd = open(rep_path, O_WRONLY);
     if (rep_fd == -1) {
-        // Client parti ? On vide les arguments potentiels
+        // On vide les arguments potentiels si client envoie plus que l'opcode
         if (opcode != OPCODE_LIST && opcode != OPCODE_TERMINATE) {
             uint64_t trash; read(req_fd, &trash, 8);
         }

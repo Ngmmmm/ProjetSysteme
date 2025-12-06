@@ -48,5 +48,14 @@ int read_u16_be(int fd, uint16_t *val);
 int read_u32_be(int fd, uint32_t *val);
 int read_u64_be(int fd, uint64_t *val);
 int read_u8(int fd, uint8_t *val);
+
+/**
+ * Affiche récursivement le contenu d'une structure command.
+*/
 void print_command(struct command *cmd, int indent);
+
+/**
+ * Sérialise une commande en chaîne de caractères (pour l'envoi au client).
+ */
+void serialize_command_to_buffer(struct command *cmd, char *buffer, size_t buf_size);
 

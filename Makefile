@@ -36,7 +36,7 @@ test: distclean all
 	@rm -rf $(TEST_DIR)
 	@mkdir -p $(TEST_DIR)
 	
-	@echo "==> Copie des exemples d’arborescences..."
+	@echo "==> Copie des exemples d'arborescences..."
 	@cp -r consignes/exemples-arborescences/exemple-arborescence-1/tmp-username-erraid/* $(TEST_DIR) 
 	@cp -r consignes/exemples-arborescences/exemple-arborescence-2/tmp-username-erraid/* $(TEST_DIR) 
 	@cp -r consignes/exemples-arborescences/exemple-arborescence-3/tmp-username-erraid/* $(TEST_DIR) 

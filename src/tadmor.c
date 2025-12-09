@@ -96,9 +96,9 @@ ssize_t read_full(int fd, void *buf, size_t count) {
 }
 
 void handle_list_reponse(int fd) {
-    uint32_t nb_tasks_be; 
+    uint16_t nb_tasks_be; 
     if (read_full(fd, &nb_tasks_be, 4) != 4) return;
-    uint32_t nb_tasks = be32toh(nb_tasks_be);
+    uint16_t nb_tasks = be32toh(nb_tasks_be);
 
     printf("--- Liste des Tâches (%u) ---\n", nb_tasks);
     
@@ -110,17 +110,18 @@ void handle_list_reponse(int fd) {
 
     for (uint32_t i = 0; i < nb_tasks; i++) {
         uint64_t id_be, min_be;
-        uint32_t hour_be, len_be;
+        uint32_t hour_be;
         uint8_t day;
+        uint16_t len_be;
 
         // Lecture des données brutes (Big Endian)
         read_full(fd, &id_be, 8); // id
         read_full(fd, &min_be, 8); // minute
         read_full(fd, &hour_be, 4); // heure
         read_full(fd, &day, 1); // jour
-        read_full(fd, &len_be, 4); // 
+        read_full(fd, &len_be, 2);
 
-        uint32_t len = be32toh(len_be);
+        uint16_t len = be16toh(len_be);
         char *cmd_buf = malloc(len + 1);
         read_full(fd, cmd_buf, len);
         cmd_buf[len] = '\0';

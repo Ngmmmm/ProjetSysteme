@@ -100,28 +100,33 @@ void handle_list_reponse(int fd) {
     if (read_full(fd, &nb_tasks_be, 4) != 4) return;
     uint16_t nb_tasks = be32toh(nb_tasks_be);
 
-    printf("--- Liste des Tâches (%u) ---\n", nb_tasks);
+    if (nb_tasks == 0) {
+        return; 
+    }
+
+    char buf[1024];
+
+    snprintf(buf, sizeof(buf), "--- Liste des Tâches (%u) ---", nb_tasks);
+    write_line(buf);
     
-    // On ajoute un en-tête pour que ce soit lisible
-    // %-5s = aligné à gauche sur 5 espaces
-    // %-30s = aligné à gauche pour le timing
-    printf("%-5s | %-30s | %s\n", "ID", "Timing (Min/H/Jr)", "Commande");
-    printf("----------------------------------------------------------\n");
+    snprintf(buf, sizeof(buf), "%-5s | %-20s | %s", "ID", "Timing (Min/H/Jr)", "Commande");
+    write_line(buf);
+    write_line("----------------------------------------------------------");
 
     for (uint32_t i = 0; i < nb_tasks; i++) {
         uint64_t id_be, min_be;
         uint32_t hour_be;
         uint8_t day;
-        uint16_t len_be;
+        uint32_t len_be;
 
         // Lecture des données brutes (Big Endian)
         read_full(fd, &id_be, 8); // id
         read_full(fd, &min_be, 8); // minute
         read_full(fd, &hour_be, 4); // heure
         read_full(fd, &day, 1); // jour
-        read_full(fd, &len_be, 2);
+        read_full(fd, &len_be, 4);
 
-        uint16_t len = be16toh(len_be);
+        uint32_t len = be32toh(len_be);
         char *cmd_buf = malloc(len + 1);
         read_full(fd, cmd_buf, len);
         cmd_buf[len] = '\0';
@@ -136,8 +141,11 @@ void handle_list_reponse(int fd) {
 
         // Affichage
         // On affiche Min, Heures et Jours
-        snprintf(timing_str, sizeof(timing_str), "0x%016lx", mins);
-        printf("%-5lu | %-30s | %s\n", id, timing_str, cmd_buf);
+        snprintf(buf, sizeof(buf), "%-5lu | 0x%016lx | %s", 
+               be64toh(id_be), 
+               be64toh(min_be),
+               cmd_buf);
+        write_line(buf);
         free(cmd_buf);
     }
 }
@@ -214,6 +222,7 @@ int read_response(const char *pipes_dir, uint16_t original_opcode) {
     uint16_t anstype = be16toh(anstype_be);
 
     //Dispatch
+    int return_code = 0;
     if (anstype == ANSTYPE_ERR) {
         uint16_t errcode_be;
         read_full(fd, &errcode_be, sizeof(uint16_t));
@@ -221,6 +230,7 @@ int read_response(const char *pipes_dir, uint16_t original_opcode) {
         char buf[64];
         snprintf(buf, sizeof(buf), "Erreur reçue du démon (Code: %04x)", be16toh(errcode_be));
         write_line(buf);
+        return_code = -1;
     } 
     else if (anstype == ANSTYPE_OK) {
         switch (original_opcode) {
@@ -232,10 +242,11 @@ int read_response(const char *pipes_dir, uint16_t original_opcode) {
         }
     } else {
         write_line("Type de réponse inconnu.");
+        return_code = -1;
     }
 
     close(fd);
-    return 0;
+    return return_code;
 }
 
 
@@ -319,19 +330,16 @@ int main(int argc, char *argv[]) {
             break;
     }
 
-
-
-
-    // Envoi de la requête
-    char msg[256];
-    snprintf(msg, sizeof(msg), "Envoi requête vers %s...", pipes_directory);
-    write_line(msg);
-
     if (send_request(pipes_directory, opcode, target_task_id) == 0) {
-        write_line("Requête envoyée avec succès !");
-        read_response(pipes_directory, opcode);
+
+        int res = read_response(pipes_directory, opcode);
+        
+        if (res != 0) {
+            return EXIT_FAILURE; 
+        }
+    } else {
+        return EXIT_FAILURE; 
     }
 
-
-    return 0;
+    return EXIT_SUCCESS; 
 }

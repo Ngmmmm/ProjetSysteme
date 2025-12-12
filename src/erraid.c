@@ -89,11 +89,21 @@ char* read_string_from_fd(int fd) {
         return NULL;
     }
     
-    ssize_t bytes_read = read(fd, buffer, str_len);
-    if (bytes_read == -1 || bytes_read != (ssize_t)str_len) {
-        write_error("read_string: erreur de lecture");
-        free(buffer);
-        return NULL;
+    size_t total = 0;
+    while (total < str_len) {
+        ssize_t r = read(fd, buffer + total, str_len - total);
+        if (r == -1) {
+            if (errno == EINTR) continue;
+            write_error("read_string: erreur de lecture");
+            free(buffer);
+            return NULL;
+        }
+        if (r == 0) { 
+            write_error("read_string: fin de fichier inattendue");
+            free(buffer);
+            return NULL;
+        }
+        total += (size_t)r;
     }
     
     buffer[str_len] = '\0';
@@ -546,23 +556,28 @@ int main(int argc, char *argv[]) {
 
     
     // Synchronisation initiale sur la minute
-    time_t start_now = time(NULL);
-    int seconds_to_wait = 60 - (start_now % 60);
-    if (seconds_to_wait == 0) seconds_to_wait = 60; // Sécurités
+    time_t start = time(NULL);
+    struct tm *tm_start = localtime(&start);
+    int seconds_to_wait = 60 - tm_start->tm_sec;
+
+    if (seconds_to_wait == 0) seconds_to_wait = 60;
+
     write_line("Synchronisation horloge...");
     sleep(seconds_to_wait);
 
 
     // Initialisation pour éviter la double exécution
-    int last_executed_min = -1;
+    time_t now = time(NULL);
+    struct tm *tm_now = localtime(&now);
+    int last_min = (tm_now->tm_min - 1 + 60) % 60;
 
     while (1) {
         time_t now = time(NULL);
         struct tm *tm_now = localtime(&now);
 
         // Exécution des tâches (seulement si nouvelle minute)
-        if (tm_now->tm_min != last_executed_min) {
-            last_executed_min = tm_now->tm_min; // On marque la minute comme faite
+        if (tm_now->tm_min != last_min) {
+            last_min = tm_now->tm_min; // On marque la minute comme faite
 
             for (size_t i = 0; i < task_count; i++) {
                 if (is_time_to_run(&all_tasks[i], tm_now)) {
@@ -592,6 +607,8 @@ int main(int argc, char *argv[]) {
         now = time(NULL);
         tm_now = localtime(&now);
         int seconds_to_wait = 60 - tm_now->tm_sec;
+
+        if (seconds_to_wait == 60) seconds_to_wait = 0;
         
         // Si on est à 59s, on attend 1s. Si on est à 0s, on attend 60s.
         // Sécurité : ne jamais attendre 0 ou négatif

@@ -602,13 +602,11 @@ int main(int argc, char *argv[]) {
                     snprintf(buffer, sizeof(buffer), "Exécution de la tâche ID %lu...", t->taskid);
                     write_line(buffer);
 
-                    // NOUVEAU CODE : Exécution asynchrone
+                    // Exécution asynchrone
                     pid_t pid = fork();
                     if (pid == 0) {
                         // Processus Fils "Task Runner"
-                        
-                        // Rétablir le comportement par défaut de SIGCHLD pour que waitpid fonctionne 
-                        // correctement dans execute_simple_command_in_terminal
+
                         struct sigaction sa_dfl;
                         sa_dfl.sa_handler = SIG_DFL;
                         sigemptyset(&sa_dfl.sa_mask);

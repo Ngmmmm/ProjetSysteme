@@ -14,6 +14,16 @@
 #include <getopt.h> 
 #include <ctype.h>
 #include <sys/select.h>
+#include <signal.h>
+
+
+void sigchld_handler(int signum) {
+    int saved_errno = errno;
+    while (waitpid(-1, NULL, WNOHANG) > 0);
+    errno = saved_errno;
+}
+
+
 
 // Variable globale pour la racine 
 char g_root_dir[MAX_PATH_LEN];
@@ -509,8 +519,7 @@ void handle_client_request(int req_fd, struct task *tasks, size_t task_count) {
         }
     } 
 
-    //a continuer 
-
+    // a complété
 
 
 
@@ -535,6 +544,13 @@ int main(int argc, char *argv[]) {
             g_root_dir[sizeof(g_root_dir) - 1] = '\0';
         }
     }
+
+
+    struct sigaction sa;
+    sa.sa_handler = sigchld_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
+    sigaction(SIGCHLD, &sa, NULL);
 
     char buffer[MAX_PATH_LEN + 64];
     snprintf(buffer, sizeof(buffer), " Démon erraid démarré sur : %s ", g_root_dir);
@@ -586,17 +602,35 @@ int main(int argc, char *argv[]) {
                     snprintf(buffer, sizeof(buffer), "Exécution de la tâche ID %lu...", t->taskid);
                     write_line(buffer);
 
-                    // Chemins logs
-                    char p_out[MAX_PATH_LEN], p_err[MAX_PATH_LEN];
-                    snprintf(p_out, MAX_PATH_LEN, "%s/tasks/%lu/stdout", g_root_dir, t->taskid);
-                    snprintf(p_err, MAX_PATH_LEN, "%s/tasks/%lu/stderr", g_root_dir, t->taskid);
-                    
-                    // Truncate logs
-                    close(open(p_out, O_WRONLY | O_CREAT | O_TRUNC, 0644));
-                    close(open(p_err, O_WRONLY | O_CREAT | O_TRUNC, 0644));
+                    // NOUVEAU CODE : Exécution asynchrone
+                    pid_t pid = fork();
+                    if (pid == 0) {
+                        // Processus Fils "Task Runner"
+                        
+                        // Rétablir le comportement par défaut de SIGCHLD pour que waitpid fonctionne 
+                        // correctement dans execute_simple_command_in_terminal
+                        struct sigaction sa_dfl;
+                        sa_dfl.sa_handler = SIG_DFL;
+                        sigemptyset(&sa_dfl.sa_mask);
+                        sa_dfl.sa_flags = 0;
+                        sigaction(SIGCHLD, &sa_dfl, NULL);
 
-                    int exit_code = execute_command_in_terminal(t->command, t->taskid);
-                    log_execution(t->taskid, exit_code);
+                        // Troncature des fichiers de logs ici (dans le fils uniquement)
+                        char p_out[MAX_PATH_LEN], p_err[MAX_PATH_LEN];
+                        snprintf(p_out, MAX_PATH_LEN, "%s/tasks/%lu/stdout", g_root_dir, t->taskid);
+                        snprintf(p_err, MAX_PATH_LEN, "%s/tasks/%lu/stderr", g_root_dir, t->taskid);
+                        
+                        int fd = open(p_out, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                        if (fd != -1) close(fd);
+                        fd = open(p_err, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                        if (fd != -1) close(fd);
+
+                        // Exécution et Log
+                        int exit_code = execute_command_in_terminal(t->command, t->taskid);
+                        log_execution(t->taskid, exit_code);
+                        
+                        exit(0); // Le fils termine ici
+                    }
                 }
 
             }

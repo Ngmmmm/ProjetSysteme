@@ -129,43 +129,39 @@ void handle_list_reponse(int fd) {
 }
 
 void handle_runs_reponse(int fd) {
-    uint16_t nb_runs_be;
-    if (read_full(fd, &nb_runs_be, sizeof(uint16_t)) != sizeof(uint16_t)) return;
-    uint16_t nb_runs = be16toh(nb_runs_be);
 
-    char buf[512];
-    snprintf(buf, sizeof(buf), "Historique d'exécution (%d runs)", nb_runs);
-    write_line(buf);
+    uint32_t nb_runs_be;
+    if (read(fd, &nb_runs_be, 4) != 4) return;
+    uint32_t nb_runs = be32toh(nb_runs_be);
 
-    write_line("Date                      | Code Retour");
+    char buf[128];
+    char date_buf[64];
 
-    for (int i = 0; i < nb_runs; i++) {
+    for (uint32_t i = 0; i < nb_runs; i++) { 
         int64_t time_val_be;
         uint16_t exit_code_be;
 
-        read_full(fd, &time_val_be, sizeof(int64_t));
-        read_full(fd, &exit_code_be, sizeof(uint16_t));
+        read(fd, &time_val_be, 8);
+        read(fd, &exit_code_be, 2);
 
         time_t timestamp = (time_t)be64toh(time_val_be);
         uint16_t code = be16toh(exit_code_be);
 
-        char *date_str = ctime(&timestamp);
-        if (date_str) date_str[strlen(date_str) - 1] = '\0';
+        struct tm *tm_info = localtime(&timestamp);
+        strftime(date_buf, sizeof(date_buf), "%Y-%m-%d %H:%M:%S", tm_info);
 
-        snprintf(buf, sizeof(buf), "%-25s | %d", date_str ? date_str : "Inconnu", code);
+        snprintf(buf, sizeof(buf), "%s %d", date_buf, code);
         write_line(buf);
     }
 }
 
+
 void handle_output_reponse(int fd) {
     uint32_t len_be;
-    if (read_full(fd, &len_be, sizeof(uint32_t)) != sizeof(uint32_t)) return;
+    // Lecture de la taille (4 octets)
+    if (read(fd, &len_be, 4) != 4) return;
     uint32_t len = be32toh(len_be);
-
-    char buf[512];
-    snprintf(buf, sizeof(buf), "Sortie Standard/Erreur (%u octets)", len);
-    write_line(buf);
-    
+    // Copie du contenu brut vers la sortie standard
     char content_buf[1024];
     uint32_t remaining = len;
     while (remaining > 0) {
@@ -175,7 +171,6 @@ void handle_output_reponse(int fd) {
         write(STDOUT_FILENO, content_buf, n);
         remaining -= n;
     }
-    
 }
 
 void deserialize_and_print_cmd(int fd, int is_root) {

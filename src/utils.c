@@ -197,7 +197,7 @@ void print_mask_list(uint64_t mask, int max_bits) {
             }
         }
     }
-    if (first) print_str("0");
+    if (first) print_str("-");
 }
 
 void print_timing_complex(uint64_t min, uint32_t hour, uint8_t day) {

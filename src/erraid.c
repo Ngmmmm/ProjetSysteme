@@ -539,56 +539,36 @@ int main(int argc, char *argv[]) {
     if (all_tasks == NULL && task_count == 0) {
         write_error("Aucune tâche chargée ou erreur fatale.");
 
+    }else {
+        snprintf(buffer, sizeof(buffer), "%zu tâches chargées.", task_count);
+        write_line(buffer);
     }
 
-    snprintf(buffer, sizeof(buffer), "%zu tâches chargées.", task_count);
-    write_line(buffer);
-
+    
     // Synchronisation initiale sur la minute
     time_t start_now = time(NULL);
     int seconds_to_wait = 60 - (start_now % 60);
+    if (seconds_to_wait == 0) seconds_to_wait = 60; // Sécurités
     write_line("Synchronisation horloge...");
     sleep(seconds_to_wait);
 
+    
+
+    // Initialisation pour éviter la double exécution
+    int last_executed_min = -1;
+
     while (1) {
-        //Calcul du temps restant avant la prochaine minute
         time_t now = time(NULL);
         struct tm *tm_now = localtime(&now);
-        int seconds_to_wait = 60 - tm_now->tm_sec;
 
-        //Préparation des descripteurs à surveiller
-        fd_set readfds;
-        FD_ZERO(&readfds);
-        FD_SET(g_request_fd, &readfds);
-
-
-        // Configuration du timeout pour select
-        struct timeval timeout;
-        timeout.tv_sec = seconds_to_wait;
-        timeout.tv_usec = 0;
-
-
-
-        // Appel bloquant à select
-        // Il se réveillera soit au Timeout (nouvelle minute), soit si tadmor parle.
-        int ret = select(g_request_fd + 1, &readfds, NULL, NULL, &timeout);
-
-        if (ret == -1) {
-            if (errno == EINTR) continue; 
-            perror("select");
-            break;
-        }
-
-        //CAS 1
-        if (ret == 0) {
-            // On rafraîchit l'heure car select a attendu
-            time_t sched_time = time(NULL);
-            struct tm *sched_tm = localtime(&sched_time);
+        // 1. Exécution des tâches (seulement si nouvelle minute)
+        if (tm_now->tm_min != last_executed_min) {
+            last_executed_min = tm_now->tm_min; // On marque la minute comme faite
 
             for (size_t i = 0; i < task_count; i++) {
-                struct task *t = &all_tasks[i];
-                
-                if (is_time_to_run(t, sched_tm)) {
+                if (is_time_to_run(&all_tasks[i], tm_now)) {
+                    struct task *t = &all_tasks[i];
+
                     snprintf(buffer, sizeof(buffer), "Exécution de la tâche ID %lu...", t->taskid);
                     write_line(buffer);
 
@@ -604,19 +584,36 @@ int main(int argc, char *argv[]) {
                     int exit_code = execute_command_in_terminal(t->command, t->taskid);
                     log_execution(t->taskid, exit_code);
                 }
+
             }
-            
-            // Sécurité pour éviter de relancer deux fois dans la même seconde 
-            // si le calcul est trop rapide
-            sleep(1); 
         }
 
-        //CAS 2
-        else if (FD_ISSET(g_request_fd, &readfds)) {
-            write_line("Requête reçue du client !");
-            
+        // 2. Calcul de l'attente
+        // On vise le début de la minute SUIVANTE
+        now = time(NULL);
+        tm_now = localtime(&now);
+        int seconds_to_wait = 60 - tm_now->tm_sec;
+        
+        // Si on est à 59s, on attend 1s. Si on est à 0s, on attend 60s.
+        // Sécurité : ne jamais attendre 0 ou négatif
+        if (seconds_to_wait <= 0) seconds_to_wait = 1;
+
+        // 3. Attente active (Select)
+        struct timeval timeout;
+        timeout.tv_sec = seconds_to_wait;
+        timeout.tv_usec = 0;
+        
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(g_request_fd, &readfds);
+
+        int ret = select(g_request_fd + 1, &readfds, NULL, NULL, &timeout);
+
+        if (ret > 0 && FD_ISSET(g_request_fd, &readfds)) {
+            // Traitement requête
             handle_client_request(g_request_fd, all_tasks, task_count);
         }
+        // Si ret == 0 (Timeout), on boucle et on tombera sur (tm_min != last)
     }
 
     // Nettoyage

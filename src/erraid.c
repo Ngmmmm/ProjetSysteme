@@ -552,7 +552,6 @@ int main(int argc, char *argv[]) {
     write_line("Synchronisation horloge...");
     sleep(seconds_to_wait);
 
-    
 
     // Initialisation pour éviter la double exécution
     int last_executed_min = -1;
@@ -561,7 +560,7 @@ int main(int argc, char *argv[]) {
         time_t now = time(NULL);
         struct tm *tm_now = localtime(&now);
 
-        // 1. Exécution des tâches (seulement si nouvelle minute)
+        // Exécution des tâches (seulement si nouvelle minute)
         if (tm_now->tm_min != last_executed_min) {
             last_executed_min = tm_now->tm_min; // On marque la minute comme faite
 
@@ -588,8 +587,8 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        // 2. Calcul de l'attente
-        // On vise le début de la minute SUIVANTE
+        // Calcul de l'attente
+        // On vise le début de la minute suivante
         now = time(NULL);
         tm_now = localtime(&now);
         int seconds_to_wait = 60 - tm_now->tm_sec;
@@ -598,7 +597,7 @@ int main(int argc, char *argv[]) {
         // Sécurité : ne jamais attendre 0 ou négatif
         if (seconds_to_wait <= 0) seconds_to_wait = 1;
 
-        // 3. Attente active (Select)
+        // Attente active (Select)
         struct timeval timeout;
         timeout.tv_sec = seconds_to_wait;
         timeout.tv_usec = 0;
@@ -613,7 +612,6 @@ int main(int argc, char *argv[]) {
             // Traitement requête
             handle_client_request(g_request_fd, all_tasks, task_count);
         }
-        // Si ret == 0 (Timeout), on boucle et on tombera sur (tm_min != last)
     }
 
     // Nettoyage

@@ -39,6 +39,9 @@ void print_usage(const char *prog_name) {
 }
 
 
+void deserialize_and_print_cmd(int fd, int is_root);
+
+
 
 /**
  * Envoie une requête simple au démon via le tube nommé.
@@ -96,57 +99,32 @@ ssize_t read_full(int fd, void *buf, size_t count) {
 }
 
 void handle_list_reponse(int fd) {
-    uint16_t nb_tasks_be; 
-    if (read_full(fd, &nb_tasks_be, 4) != 4) return;
-    uint16_t nb_tasks = be32toh(nb_tasks_be);
+    uint32_t nb_tasks_be; 
+    if (read(fd, &nb_tasks_be, 4) != 4) return;
+    uint32_t nb_tasks = be32toh(nb_tasks_be);
 
-    if (nb_tasks == 0) {
-        return; 
-    }
+    if (nb_tasks == 0) return;
 
-    char buf[1024];
-
-    snprintf(buf, sizeof(buf), "--- Liste des Tâches (%u) ---", nb_tasks);
-    write_line(buf);
-    
-    snprintf(buf, sizeof(buf), "%-5s | %-20s | %s", "ID", "Timing (Min/H/Jr)", "Commande");
-    write_line(buf);
-    write_line("----------------------------------------------------------");
+    char buf[64];
 
     for (uint32_t i = 0; i < nb_tasks; i++) {
         uint64_t id_be, min_be;
         uint32_t hour_be;
         uint8_t day;
-        uint32_t len_be;
 
-        // Lecture des données brutes (Big Endian)
-        read_full(fd, &id_be, 8); // id
-        read_full(fd, &min_be, 8); // minute
-        read_full(fd, &hour_be, 4); // heure
-        read_full(fd, &day, 1); // jour
-        read_full(fd, &len_be, 4);
+        read(fd, &id_be, 8); 
+        read(fd, &min_be, 8);
+        read(fd, &hour_be, 4);
+        read(fd, &day, 1);
 
-        uint32_t len = be32toh(len_be);
-        char *cmd_buf = malloc(len + 1);
-        read_full(fd, cmd_buf, len);
-        cmd_buf[len] = '\0';
+        snprintf(buf, sizeof(buf), "%lu: ", be64toh(id_be));
+        print_str(buf);
 
-        // Conversion Big Endian -> Hôte
-        uint64_t id = be64toh(id_be);
-        uint64_t mins = be64toh(min_be);
-        uint32_t hours = be32toh(hour_be);
-        // day est sur 1 octet, pas de conversion endian
+        print_timing_complex(be64toh(min_be), be32toh(hour_be), day);
+        print_str(" ");
 
-        char timing_str[64];
-
-        // Affichage
-        // On affiche Min, Heures et Jours
-        snprintf(buf, sizeof(buf), "%-5lu | 0x%016lx | %s", 
-               be64toh(id_be), 
-               be64toh(min_be),
-               cmd_buf);
-        write_line(buf);
-        free(cmd_buf);
+        deserialize_and_print_cmd(fd, 1);
+        print_str("\n");
     }
 }
 
@@ -200,37 +178,71 @@ void handle_output_reponse(int fd) {
     
 }
 
-//Fonction Principale appelée par le main
+void deserialize_and_print_cmd(int fd, int is_root) {
+    char type[3]; 
+    if (read(fd, type, 2) != 2) return;
+    type[2] = '\0';
+
+    if (strcmp(type, "SI") == 0) {
+        uint32_t argc_be;
+        read(fd, &argc_be, 4);
+        uint32_t argc = be32toh(argc_be);
+
+        for (uint32_t i = 0; i < argc; i++) {
+            char *arg = read_string_from_pipe(fd);
+            if (arg) {
+                print_str(arg); 
+                if (i < argc - 1) print_str(" ");
+                free(arg);
+            }
+        }
+    } 
+    else if (strcmp(type, "SQ") == 0) {
+        uint32_t sub_be;
+        read(fd, &sub_be, 4);
+        uint32_t subcount = be32toh(sub_be);
+
+        //On n'affiche ( que si c pas la racine
+        if (!is_root) print_str("( ");
+        
+        for (uint32_t i = 0; i < subcount; i++) {
+            //Les enfants sont jamais la racine donc 0
+            deserialize_and_print_cmd(fd, 0); 
+            
+            if (i < subcount - 1) print_str(" ; ");
+        }
+        if (!is_root) print_str(" )");
+    }
+}
+
+
+
 int read_response(const char *pipes_dir, uint16_t original_opcode) {
     char reply_pipe_path[MAX_PATH_LEN];
     snprintf(reply_pipe_path, sizeof(reply_pipe_path), "%s/erraid-reply-pipe", pipes_dir);
 
-    //Ouverture (Bloquant)
     int fd = open(reply_pipe_path, O_RDONLY);
     if (fd == -1) {
-        perror("open reply pipe"); 
         return -1;
     }
 
-    //Lecture Header
     uint16_t anstype_be;
-    if (read_full(fd, &anstype_be, sizeof(uint16_t)) != sizeof(uint16_t)) {
-        write_line("Erreur: Réponse vide ou connexion fermée.");
+    if (read(fd, &anstype_be, 2) != 2) {
         close(fd);
         return -1;
     }
     uint16_t anstype = be16toh(anstype_be);
 
-    //Dispatch
     int return_code = 0;
+
     if (anstype == ANSTYPE_ERR) {
         uint16_t errcode_be;
-        read_full(fd, &errcode_be, sizeof(uint16_t));
+        read(fd, &errcode_be, 2);
         
         char buf[64];
         snprintf(buf, sizeof(buf), "Erreur reçue du démon (Code: %04x)", be16toh(errcode_be));
         write_line(buf);
-        return_code = -1;
+        return_code = -1; 
     } 
     else if (anstype == ANSTYPE_OK) {
         switch (original_opcode) {
@@ -248,9 +260,6 @@ int read_response(const char *pipes_dir, uint16_t original_opcode) {
     close(fd);
     return return_code;
 }
-
-
-
 
 
 

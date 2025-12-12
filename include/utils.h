@@ -37,6 +37,8 @@
  */
 void write_line(const char *line);
 
+void print_str(const char *str);
+
 /**
  * Écrit un message d'erreur sur la sortie d'erreur standard (stderr).
  * Récupère le message d'erreur système via strerror(errno).
@@ -58,4 +60,9 @@ void print_command(struct command *cmd, int indent);
  * Sérialise une commande en chaîne de caractères (pour l'envoi au client).
  */
 void serialize_command_to_buffer(struct command *cmd, char *buffer, size_t buf_size);
+
+char* read_string_from_pipe(int fd);
+// --- Affichage Formaté ---
+void print_mask_list(uint64_t mask, int max_bits); 
+void print_timing_complex(uint64_t min, uint32_t hour, uint8_t day);
 

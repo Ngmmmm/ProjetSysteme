@@ -22,6 +22,10 @@ void write_line(const char *line) {
     write(STDOUT_FILENO, "\n", 1);
 }
 
+void print_str(const char *str) {
+    write(STDOUT_FILENO, str, strlen(str));
+}
+
 void write_error(const char *prefix) {
     const char *err_msg = strerror(errno);
     write(STDERR_FILENO, prefix, strlen(prefix));
@@ -136,5 +140,71 @@ int read_u8(int fd, uint8_t *val) {
         return -1;
     }
     return 0;
+}
+
+char* read_string_from_pipe(int fd) {
+    uint32_t len_be;
+    ssize_t n = read(fd, &len_be, 4);
+    if (n != 4) return NULL;
+    
+    uint32_t len = be32toh(len_be);
+
+    char *buf = malloc(len + 1);
+    if (!buf) return NULL;
+    
+    if (len > 0) {
+        ssize_t r = read(fd, buf, len);
+        if (r != (ssize_t)len) {
+            free(buf);
+            return NULL;
+        }
+    }
+    buf[len] = '\0';
+    return buf;
+}
+
+void print_mask_list(uint64_t mask, int max_bits) {
+    uint64_t full_mask = 0;
+    for(int i=0; i<max_bits; i++) full_mask |= ((uint64_t)1 << i);
+    
+    if ((mask & full_mask) == full_mask) {
+        print_str("*");
+        return;
+    }
+
+    int first = 1;
+    int start = -1;
+    char buf[32];
+
+    for (int i = 0; i <= max_bits; i++) {
+        int bit = (i < max_bits) ? ((mask >> i) & 1) : 0;
+
+        if (bit) {
+            if (start == -1) start = i;
+        } else {
+            if (start != -1) {
+                if (!first) print_str(",");
+                
+                if (start == i - 1) {
+                    snprintf(buf, sizeof(buf), "%d", start);
+                } else {
+                    snprintf(buf, sizeof(buf), "%d-%d", start, i - 1);
+                }
+                print_str(buf);
+                
+                first = 0;
+                start = -1;
+            }
+        }
+    }
+    if (first) print_str("0");
+}
+
+void print_timing_complex(uint64_t min, uint32_t hour, uint8_t day) {
+    print_mask_list(min, 60);
+    print_str(" ");
+    print_mask_list((uint64_t)hour, 24);
+    print_str(" ");
+    print_mask_list((uint64_t)day, 7);
 }
 

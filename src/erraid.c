@@ -605,20 +605,14 @@ int main(int argc, char *argv[]) {
 
     
     // Synchronisation initiale sur la minute
-    time_t start = time(NULL);
-    struct tm *tm_start = localtime(&start);
-    int seconds_to_wait = 60 - tm_start->tm_sec;
-
-    if (seconds_to_wait == 0) seconds_to_wait = 60;
-
-    write_line("Synchronisation horloge...");
-    sleep(seconds_to_wait);
-
-
-    // Initialisation pour éviter la double exécution
-    time_t now = time(NULL);
+   time_t now = time(NULL);
     struct tm *tm_now = localtime(&now);
-    int last_min = (tm_now->tm_min - 1 + 60) % 60;
+    
+    int last_min = tm_now->tm_min;
+
+    if (tm_now->tm_sec == 0) {
+        last_min = -1;
+    }
 
     while (1) {
         time_t now = time(NULL);

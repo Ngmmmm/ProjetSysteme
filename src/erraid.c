@@ -501,6 +501,32 @@ void write_command_to_fd(int fd, struct command *cmd) {
     }
 }
 
+int send_file_content(int rep_fd, const char *filepath, int with_header_len) {
+    int file_fd = open(filepath, O_RDONLY);
+    if (file_fd == -1) return -1;
+
+    // Récupération de la taille
+    struct stat st;
+    if (fstat(file_fd, &st) == -1) { close(file_fd); return -1; }
+    uint32_t size = (uint32_t)st.st_size;
+
+    // Si le protocole demande d'envoyer la taille avant (pour stdout/stderr)
+    if (with_header_len) {
+        uint32_t size_be = htobe32(size);
+        write(rep_fd, &size_be, 4);
+    }
+
+    // Copie du contenu
+    char buf[1024];
+    ssize_t n;
+    while ((n = read(file_fd, buf, sizeof(buf))) > 0) {
+        write(rep_fd, buf, n);
+    }
+    
+    close(file_fd);
+    return 0;
+}
+
 
 void handle_client_request(int req_fd, struct task *tasks, size_t task_count) {
 
@@ -552,12 +578,92 @@ void handle_client_request(int req_fd, struct task *tasks, size_t task_count) {
         return;
     } 
 
-    // a complété
+    if (opcode == OPCODE_TERMINATE) {
+        write(rep_fd, &ans_ok, 2);
+        close(rep_fd);
+        exit(0);
+    }
 
+    // COMMANDES CIBLÉES (-x, -o, -e)
+    uint64_t taskid_be;
+    if (read(req_fd, &taskid_be, 8) != 8) {
+        close(rep_fd);
+        return;
+    }
+    uint64_t target_id = be64toh(taskid_be);
 
+    //Recherche de la tâche (Pour erreur ERNF)
+    struct task *target_task = NULL;
+    for (size_t i = 0; i < task_count; i++) {
+        if (tasks[i].taskid == target_id) {
+            target_task = &tasks[i];
+            break;
+        }
+    }
 
+    if (!target_task) {
+        // Tâche non trouvée -> ERNF
+        write(rep_fd, &ans_err, 2);
+        write(rep_fd, &err_nf, 2);
+        close(rep_fd);
+        return;
+    }
 
+    //Traitement selon l'opcode
+    char file_path[MAX_PATH_LEN];
+    int res = -1;
+
+    if (opcode == OPCODE_TIMES_EXITCODES) { // -x
+        snprintf(file_path, MAX_PATH_LEN, "%s/tasks/%lu/times-exitcodes", g_root_dir, target_id);
+        
+        int fd_log = open(file_path, O_RDONLY);
+        if (fd_log == -1) {
+            // Pas de fichier log -> ERNR
+            write(rep_fd, &ans_err, 2);
+            write(rep_fd, &err_nr, 2);
+        } else {
+            write(rep_fd, &ans_ok, 2);
+            
+            // Calcul du nombre de runs
+            struct stat st;
+            fstat(fd_log, &st);
+            uint32_t runs = (uint32_t)(st.st_size / 10);
+            uint32_t runs_be = htobe32(runs);
+            
+            write(rep_fd, &runs_be, 4);
+            
+            // Copie contenu
+            char buf[1024];
+            ssize_t n;
+            while ((n = read(fd_log, buf, sizeof(buf))) > 0) write(rep_fd, buf, n);
+            close(fd_log);
+        }
+    } 
+    else if (opcode == OPCODE_STDOUT || opcode == OPCODE_STDERR) { // -o ou -e
+        const char *filename = (opcode == OPCODE_STDOUT) ? "stdout" : "stderr";
+        snprintf(file_path, MAX_PATH_LEN, "%s/tasks/%lu/%s", g_root_dir, target_id, filename);
+
+        // On essaie d'ouvrir pour voir si le fichier existe
+        if (access(file_path, F_OK) == -1) {
+             // Fichier inexistant -> ERNR
+            write(rep_fd, &ans_err, 2);
+            write(rep_fd, &err_nr, 2);
+        } else {
+            write(rep_fd, &ans_ok, 2);
+            // Envoi Contenu (avec header taille = 1)
+            send_file_content(rep_fd, file_path, 1); 
+        }
+    } 
+    else {
+        // Opcode inconnu
+        write(rep_fd, &ans_err, 2);
+        uint16_t zero = 0;
+        write(rep_fd, &zero, 2);
+    }
+
+    close(rep_fd);
 }
+
 
 
 
@@ -667,11 +773,6 @@ int main(int argc, char *argv[]) {
         tm_now = localtime(&now);
         int seconds_to_wait = 60 - tm_now->tm_sec;
 
-        if (seconds_to_wait == 60) seconds_to_wait = 0;
-        
-        // Si on est à 59s, on attend 1s. Si on est à 0s, on attend 60s.
-        // Sécurité : ne jamais attendre 0 ou négatif
-        if (seconds_to_wait <= 0) seconds_to_wait = 1;
 
         // Attente active (Select)
         struct timeval timeout;

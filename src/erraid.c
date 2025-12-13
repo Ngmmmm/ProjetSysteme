@@ -471,6 +471,36 @@ void init_communication() {
     write_line("Canaux de communication (pipes) initialisés.");
 }
 
+/**
+ * Fonction qui permet d'ecrire la liste des taches serialisées
+ */
+void write_command_to_fd(int fd, struct command *cmd) {
+    if (!cmd) return;
+
+    if (strcmp(cmd->type, "SI") == 0) {
+        write(fd, "SI", 2);
+        uint32_t argc_be = htobe32((uint32_t)cmd->argc);
+        write(fd, &argc_be, sizeof(argc_be));
+
+        for (int i = 0; i < cmd->argc; i++) {
+            char *arg = cmd->argv[i];
+            uint32_t len = strlen(arg);
+            uint32_t len_be = htobe32(len);
+            write(fd, &len_be, sizeof(len_be));
+            write(fd, arg, len);
+        }
+
+    } else if (strcmp(cmd->type, "SQ") == 0) {
+        write(fd, "SQ", 2);
+        uint32_t sub_be = htobe32((uint32_t)cmd->subcount);
+        write(fd, &sub_be, sizeof(sub_be));
+
+        for (size_t i = 0; i < cmd->subcount; i++) {
+            write_command_to_fd(fd, &cmd->subcommands[i]);
+        }
+    }
+}
+
 
 void handle_client_request(int req_fd, struct task *tasks, size_t task_count) {
 
@@ -498,25 +528,28 @@ void handle_client_request(int req_fd, struct task *tasks, size_t task_count) {
     // --- LIST (-l) ---
     if (opcode == OPCODE_LIST) {
         write(rep_fd, &ans_ok, 2);
+        
+        // Nombre de tâches
         uint32_t nb = htobe32((uint32_t)task_count);
         write(rep_fd, &nb, 4);
 
         for (size_t i = 0; i < task_count; i++) {
+            // ID
             uint64_t id = htobe64(tasks[i].taskid);
+            write(rep_fd, &id, 8);
+
+            // Timing
             uint64_t min = htobe64(tasks[i].timing.minutes);
             uint32_t hour = htobe32(tasks[i].timing.hours);
             
-            write(rep_fd, &id, 8);
             write(rep_fd, &min, 8);
             write(rep_fd, &hour, 4);
             write(rep_fd, &tasks[i].timing.daysofweek, 1);
-
-            char cmd_str[2048] = "";
-            serialize_command_to_buffer(tasks[i].command, cmd_str, sizeof(cmd_str));
-            uint32_t len = htobe32(strlen(cmd_str));
-            write(rep_fd, &len, 4);
-            write(rep_fd, cmd_str, strlen(cmd_str));
+            write_command_to_fd(rep_fd, tasks[i].command);
         }
+        
+        close(rep_fd);
+        return;
     } 
 
     // a complété

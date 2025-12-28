@@ -1,20 +1,20 @@
 #include "../include/erraid.h"
-#include "../include/utils.h" 
-#include <stdlib.h>  
-#include <dirent.h>   
-#include <string.h>  
-#include <sys/stat.h> 
-#include <unistd.h>    
-#include <errno.h>     
-#include <stdio.h>    
-#include <fcntl.h> 
-#include <sys/wait.h>
+#include "../include/utils.h"
+#include "../include/globals.h"      // Globales
+#include "../include/task_loader.h"  // Chargement
+#include "../include/task_executor.h"// Exécution
+#include "../include/server_comm.h"  // Communication
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h>
 #include <time.h>
-#include <endian.h>
-#include <getopt.h> 
-#include <ctype.h>
+#include <getopt.h>
 #include <sys/select.h>
 #include <signal.h>
+#include <fcntl.h>
+#include <sys/wait.h>
 
 
 

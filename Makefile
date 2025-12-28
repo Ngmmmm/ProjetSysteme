@@ -7,6 +7,7 @@ ERRAID_SRCS = $(SRC_DIR)/erraid.c \
               $(SRC_DIR)/task_executor.c \
               $(SRC_DIR)/server_comm.c \
               $(SRC_DIR)/utils.c
+			  
 TADMOR_SRCS = $(SRC_DIR)/tadmor.c $(SRC_DIR)/utils.c
 TEST_DIR = /tmp/$(USER)/erraid
 
@@ -19,11 +20,11 @@ $(BIN_DIR):
 
 # Règle pour erraid:
 $(BIN_DIR)/erraid: $(ERRAID_SRCS) | $(BIN_DIR)
-	gcc -Wno-format-truncation -o $@ $(ERRAID_SRCS)
+	gcc -Wno-format-truncation -I include -o $@ $(ERRAID_SRCS)
 
 # Règle pour tadmor:
 $(BIN_DIR)/tadmor: $(TADMOR_SRCS) | $(BIN_DIR)
-	gcc -Wno-format-truncation -o $@ $(TADMOR_SRCS)
+	gcc -Wno-format-truncation -I include -o $@ $(TADMOR_SRCS)
 
 	@echo "==> Nettoyage et création de l'environnement de test dans $(TEST_DIR)"
 	@rm -rf $(TEST_DIR)

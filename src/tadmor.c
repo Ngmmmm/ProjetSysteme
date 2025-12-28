@@ -233,10 +233,7 @@ int read_response(const char *pipes_dir, uint16_t original_opcode) {
     if (anstype == ANSTYPE_ERR) {
         uint16_t errcode_be;
         read(fd, &errcode_be, 2);
-        
-        char buf[64];
-        snprintf(buf, sizeof(buf), "Erreur reçue du démon (Code: %04x)", be16toh(errcode_be));
-        write_line(buf);
+    
         return_code = -1; 
     } 
     else if (anstype == ANSTYPE_OK) {

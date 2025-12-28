@@ -1,7 +1,12 @@
 SRC_DIR = src
 BIN_DIR = .
 
-ERRAID_SRCS = $(SRC_DIR)/erraid.c $(SRC_DIR)/utils.c
+ERRAID_SRCS = $(SRC_DIR)/erraid.c \
+              $(SRC_DIR)/globals.c \
+              $(SRC_DIR)/task_loader.c \
+              $(SRC_DIR)/task_executor.c \
+              $(SRC_DIR)/server_comm.c \
+              $(SRC_DIR)/utils.c
 TADMOR_SRCS = $(SRC_DIR)/tadmor.c $(SRC_DIR)/utils.c
 TEST_DIR = /tmp/$(USER)/erraid
 

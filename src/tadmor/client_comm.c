@@ -53,6 +53,42 @@ int send_request(const char *pipes_dir, uint16_t opcode, uint64_t taskid) {
     return 0;
 }
 
+int send_create_request(const char *pipes_dir, struct timing t, int argc, char **argv) {
+    char req_pipe_path[MAX_PATH_LEN];
+    snprintf(req_pipe_path, sizeof(req_pipe_path), "%s/erraid-request-pipe", pipes_dir);
+
+    int fd = open(req_pipe_path, O_WRONLY);
+    if (fd == -1) {
+        write_error("Erreur: Impossible d'ouvrir le tube de requête");
+        return -1;
+    }
+
+    // OPCODE ('CR')
+    uint16_t opcode_be = htobe16(OPCODE_CREATE);
+    write(fd, &opcode_be, sizeof(uint16_t));
+
+    // TIMING (Minutes, Heures, Jours)
+    uint64_t min_be = htobe64(t.minutes);
+    uint32_t hour_be = htobe32(t.hours);
+    write(fd, &min_be, sizeof(uint64_t));
+    write(fd, &hour_be, sizeof(uint32_t));
+    write(fd, &t.daysofweek, sizeof(uint8_t));
+
+    // COMMAND (ARGC + Strings)
+    uint32_t argc_be = htobe32((uint32_t)argc);
+    write(fd, &argc_be, sizeof(uint32_t));
+
+    for (int i = 0; i < argc; i++) {
+        uint32_t len = strlen(argv[i]);
+        uint32_t len_be = htobe32(len);
+        write(fd, &len_be, sizeof(uint32_t));
+        write(fd, argv[i], len);
+    }
+
+    close(fd);
+    return 0;
+}
+
 
 int read_response(const char *pipes_dir, uint16_t original_opcode) {
     char reply_pipe_path[MAX_PATH_LEN];

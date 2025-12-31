@@ -5,6 +5,6 @@
 #include <stddef.h>
 
 void init_communication();
-void handle_client_request(int req_fd, struct task *tasks, size_t task_count);
+void handle_client_request(int req_fd, struct task **tasks, size_t *task_count);
 
 #endif

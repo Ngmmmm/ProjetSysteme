@@ -65,7 +65,7 @@ int main(int argc, char *argv[]) {
     
     int last_min = tm_now->tm_min;
 
-    if (tm_now->tm_sec < 3) {
+    if (tm_now->tm_sec == 0) {
         last_min = -1;
     }
 

@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
 
     
     // Synchronisation initiale sur la minute
-   time_t now = time(NULL);
+    time_t now = time(NULL);
     struct tm *tm_now = localtime(&now);
     
     int last_min = tm_now->tm_min;
@@ -136,7 +136,7 @@ int main(int argc, char *argv[]) {
 
         if (ret > 0 && FD_ISSET(g_request_fd, &readfds)) {
             // Traitement requête
-            handle_client_request(g_request_fd, all_tasks, task_count);
+            handle_client_request(g_request_fd, &all_tasks, &task_count);
         }
     }
 

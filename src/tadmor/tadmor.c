@@ -15,7 +15,9 @@ typedef enum {
     ACTION_LIST,            // -l
     ACTION_EXIT_CODE,       // -x
     ACTION_STDOUT,          // -o
-    ACTION_STDERR           // -e
+    ACTION_STDERR,          // -e
+    ACTION_CREATE,          // -c
+    ACTION_REMOVE           // -d
 } ActionType;
 
 /**

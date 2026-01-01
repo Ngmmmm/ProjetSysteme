@@ -111,7 +111,7 @@ void write_command_to_fd(int fd, struct command *cmd) {
 
 
 void handle_client_request(int req_fd, struct task **tasks, size_t *task_count) {
-    
+
     struct task *tasks = *tasks_ptr; 
     size_t task_count = *count_ptr;
 
@@ -141,22 +141,22 @@ void handle_client_request(int req_fd, struct task **tasks, size_t *task_count) 
         write(rep_fd, &ans_ok, 2);
         
         // Nombre de tâches
-        uint32_t nb = htobe32((uint32_t)*task_count);
+        uint32_t nb = htobe32((uint32_t)task_count);
         write(rep_fd, &nb, 4);
 
-        for (size_t i = 0; i < *task_count; i++) {
+        for (size_t i = 0; i < task_count; i++) {
             // ID
-            uint64_t id = htobe64((*tasks)[i].taskid);
+            uint64_t id = htobe64((tasks)[i].taskid);
             write(rep_fd, &id, 8);
 
             // Timing
-            uint64_t min = htobe64((*tasks)[i].timing.minutes);
-            uint32_t hour = htobe32((*tasks)[i].timing.hours);
+            uint64_t min = htobe64((tasks)[i].timing.minutes);
+            uint32_t hour = htobe32((tasks)[i].timing.hours);
             
             write(rep_fd, &min, 8);
             write(rep_fd, &hour, 4);
-            write(rep_fd, &(*tasks)[i].timing.daysofweek, 1);
-            write_command_to_fd(rep_fd, (*tasks)[i].command);
+            write(rep_fd, &(tasks)[i].timing.daysofweek, 1);
+            write_command_to_fd(rep_fd, (tasks)[i].command);
         }
         
         close(rep_fd);

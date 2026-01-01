@@ -53,7 +53,7 @@ int send_request(const char *pipes_dir, uint16_t opcode, uint64_t taskid) {
     return 0;
 }
 
-int send_create_request(const char *pipes_dir, struct timing t, int argc, char **argv) {
+int send_create_request(const char *pipes_dir, uint64_t minutes, uint32_t hours, uint8_t day,int argc, char **argv); {
     char req_pipe_path[MAX_PATH_LEN];
     snprintf(req_pipe_path, sizeof(req_pipe_path), "%s/erraid-request-pipe", pipes_dir);
 
@@ -120,6 +120,18 @@ int read_response(const char *pipes_dir, uint16_t original_opcode) {
             case OPCODE_TIMES_EXITCODES: handle_runs_reponse(fd); break;
             case OPCODE_STDOUT:
             case OPCODE_STDERR: handle_output_reponse(fd); break;
+
+            case OPCODE_CREATE: 
+                {
+                    uint64_t new_id_be;
+                    if (read(fd, &new_id_be, 8) == 8) {
+                        char buf[64];
+                        snprintf(buf, sizeof(buf), "%lu\n", be64toh(new_id_be));
+                        print_str(buf);
+                    }
+                }
+                break;
+            case OPCODE_REMOVE: break;
             default: write_line("Réponse OK mais opcode inconnu.");
         }
     } else {

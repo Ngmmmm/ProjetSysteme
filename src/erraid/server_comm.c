@@ -111,6 +111,9 @@ void write_command_to_fd(int fd, struct command *cmd) {
 
 
 void handle_client_request(int req_fd, struct task **tasks, size_t *task_count) {
+    
+    struct task *tasks = *tasks_ptr; 
+    size_t task_count = *count_ptr;
 
     uint16_t opcode_be;
     if (read(req_fd, &opcode_be, 2) <= 0) return;

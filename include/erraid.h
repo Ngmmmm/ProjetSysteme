@@ -6,6 +6,9 @@
 
 #define MAX_PATH_LEN 1024
 
+#define OPCODE_CREATE    0x0006
+#define OPCODE_REMOVE    0x0007
+
 
 
 

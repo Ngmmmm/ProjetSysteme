@@ -5,12 +5,7 @@
 
 
 
-// Opcodes pour les requêtes (Client -> Démon)
-#define OPCODE_LIST            0x4c53 // 'LS'
-#define OPCODE_TIMES_EXITCODES 0x5458 // 'TX'
-#define OPCODE_STDOUT          0x534f // 'SO'
-#define OPCODE_STDERR          0x5345 // 'SE'
-#define OPCODE_TERMINATE       0x4b49 // 'TM'
+
 
 // Codes de réponse (Démon -> Client) 
 #define ANSTYPE_OK             0x4f4b // 'OK'

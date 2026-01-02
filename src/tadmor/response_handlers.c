@@ -45,6 +45,38 @@ void deserialize_and_print_cmd(int fd, int is_root) {
         }
         if (!is_root) print_str(" )");
     }
+    else if (strcmp(type, "PL") == 0) {
+        uint32_t sub_be;
+        if (read(fd, &sub_be, 4) != 4) return;
+        uint32_t subcount = be32toh(sub_be);
+
+        if (!is_root) print_str("( ");
+        
+        for (uint32_t i = 0; i < subcount; i++) {
+            deserialize_and_print_cmd(fd, 0); 
+            if (i < subcount - 1) print_str(" | ");
+        }
+        if (!is_root) print_str(" )");
+    }
+    else if (strcmp(type, "IF") == 0) {
+        uint32_t sub_be;
+        if (read(fd, &sub_be, 4) != 4) return;
+
+        if (!is_root) print_str("( ");
+        
+        print_str("if ");
+        deserialize_and_print_cmd(fd, 0);
+        
+        print_str(" ; then ");
+        deserialize_and_print_cmd(fd, 0);
+        
+        print_str(" ; else ");
+        deserialize_and_print_cmd(fd, 0);
+        
+        print_str(" ; fi");
+        
+        if (!is_root) print_str(" )");
+    }
 }
 
 

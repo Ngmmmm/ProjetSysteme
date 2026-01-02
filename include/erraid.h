@@ -6,9 +6,16 @@
 
 #define MAX_PATH_LEN 1024
 
-#define OPCODE_CREATE    0x0006
-#define OPCODE_REMOVE    0x0007
-#define OPCODE_COMBINE   0x0008
+
+// Opcodes pour les requêtes (Client -> Démon)
+#define OPCODE_LIST             0x4C53 // 'LS'
+#define OPCODE_CREATE           0x4352 // 'CR'
+#define OPCODE_REMOVE           0x524D // 'RM'
+#define OPCODE_TERMINATE        0x544D // 'TM'
+#define OPCODE_TIMES_EXITCODES  0x5458 // 'TX'
+#define OPCODE_STDOUT           0x534F // 'SO'
+#define OPCODE_STDERR           0x5345 // 'SE'
+#define OPCODE_COMBINE          0x4342 // 'CB'
 
 
 

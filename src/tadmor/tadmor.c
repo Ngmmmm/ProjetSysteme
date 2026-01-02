@@ -37,7 +37,7 @@ void print_usage(const char *prog_name) {
     write_error("  -m <mins>   Masque minutes (Bitmask 64 bits).\n");
     write_error("  -H <heures> Masque heures (Bitmask 32 bits).\n");
     write_error("  -d <jours>  Masque jours (Bitmask 8 bits).\n");
-    write_error("  -p <dir>    Répertoire des tubes nommés.\n");
+    write_error("  -P <dir>    Répertoire des tubes nommés.\n");
     write_error("  -s <dst> <src> Combiner Séquentiellement (dst ; src).\n");
     write_error("  -p <dst> <src> Combiner en Pipeline (dst | src).\n");
     write_error("  -i <dst> <src> Combiner en Conditionnel (if dst then src).\n");
@@ -87,7 +87,7 @@ int main(int argc, char *argv[]) {
                 target_task_id = strtoull(optarg, NULL, 10);
                 break;
 
-            case 'P':
+            case 'p':
                 // L'utilisateur force un autre chemin pour les pipes
                 strncpy(pipes_directory, optarg, MAX_PATH_LEN - 1);
                 pipes_directory[MAX_PATH_LEN - 1] = '\0'; // Sécurité
@@ -112,7 +112,7 @@ int main(int argc, char *argv[]) {
                 target_task_id = strtoull(optarg, NULL, 10);
                 break;
 
-            case 'p': // Pipeline
+            case 'P': // Pipeline
                 action = ACTION_COMBINE;
                 combine_type = FILE_TYPE_PL;
                 target_task_id = strtoull(optarg, NULL, 10);
@@ -192,7 +192,7 @@ int main(int argc, char *argv[]) {
             break;
     }
 
-    if (action != ACTION_CREATE && action != ACTION_REMOVE) {
+    if (action != ACTION_CREATE && action != ACTION_REMOVE && action != ACTION_COMBINE) {
         if (send_request(pipes_directory, opcode, target_task_id) == 0) {
             int res = read_response(pipes_directory, opcode);
             if (res != 0) return EXIT_FAILURE;

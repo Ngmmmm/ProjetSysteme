@@ -8,9 +8,7 @@
 
 #define OPCODE_CREATE    0x0006
 #define OPCODE_REMOVE    0x0007
-
-
-
+#define OPCODE_COMBINE   0x0008
 
 
 

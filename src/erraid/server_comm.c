@@ -110,7 +110,7 @@ void write_command_to_fd(int fd, struct command *cmd) {
 }
 
 
-void handle_client_request(int req_fd, struct task **tasks, size_t *task_count) {
+void handle_client_request(int req_fd, struct task **tasks_ptr, size_t *count_ptr) {
 
     struct task *tasks = *tasks_ptr; 
     size_t task_count = *count_ptr;
@@ -135,6 +135,103 @@ void handle_client_request(int req_fd, struct task **tasks, size_t *task_count) 
     uint16_t err_nf = htobe16(ERRCODE_NOT_FOUND);
     uint16_t err_nr = htobe16(ERRCODE_NO_RUN);
 
+    // CREATE (-c) 
+    if (opcode == OPCODE_CREATE) {
+        //Lecture du Timing
+        struct timing t;
+        uint64_t m_be; uint32_t h_be; 
+        read(req_fd, &m_be, 8);
+        read(req_fd, &h_be, 4);
+        read(req_fd, &t.daysofweek, 1);
+        t.minutes = be64toh(m_be);
+        t.hours = be32toh(h_be);
+
+        //Lecture de la Commande
+        struct command *new_cmd = malloc(sizeof(struct command));
+        memset(new_cmd, 0, sizeof(struct command));
+        strcpy(new_cmd->type, "SI");
+
+        uint32_t argc_be;
+        read(req_fd, &argc_be, 4);
+        new_cmd->argc = be32toh(argc_be);
+        
+        new_cmd->argv = malloc((new_cmd->argc + 1) * sizeof(char*));
+        for(int i=0; i<new_cmd->argc; i++) {
+            new_cmd->argv[i] = read_string_from_fd(req_fd); 
+        }
+        new_cmd->argv[new_cmd->argc] = NULL;
+
+        //Calcul du nouvel ID
+        uint64_t max_id = 0;
+        for(size_t i=0; i<task_count; i++) {
+            if(tasks[i].taskid > max_id) max_id = tasks[i].taskid;
+        }
+        uint64_t new_id = max_id + 1;
+
+        //Construction de la tâche
+        struct task new_task;
+        new_task.taskid = new_id;
+        new_task.timing = t;
+        new_task.command = new_cmd;
+
+        //Sauvegarde et Mise à jour mémoire
+        if (save_task_to_disk(&new_task) == 0) {
+            size_t new_count = task_count + 1;
+            struct task *new_array = realloc(tasks, new_count * sizeof(struct task));
+            
+            if (new_array) {
+                new_array[task_count] = new_task;
+                *tasks_ptr = new_array;
+                *count_ptr = new_count;
+                
+                write(rep_fd, &ans_ok, 2);
+                uint64_t id_be = htobe64(new_id);
+                write(rep_fd, &id_be, 8);
+            } else {
+                write(rep_fd, &ans_err, 2);
+                free_command(new_cmd); 
+            }
+        } else {
+             write(rep_fd, &ans_err, 2);
+             free_command(new_cmd);
+        }
+        close(rep_fd);
+        return;
+    }
+
+    // REMOVE (-r)
+    if (opcode == OPCODE_REMOVE) {
+        uint64_t id_be;
+        if (read(req_fd, &id_be, 8) != 8) { close(rep_fd); return; }
+        uint64_t target_id = be64toh(id_be);
+
+        int found_idx = -1;
+        for(size_t i=0; i<task_count; i++) {
+            if(tasks[i].taskid == target_id) {
+                found_idx = i;
+                break;
+            }
+        }
+
+        if (found_idx != -1) {
+            delete_task_from_disk(target_id);
+            free_command(tasks[found_idx].command);
+
+            if (found_idx < task_count - 1) {
+                memmove(&tasks[found_idx], &tasks[found_idx+1], 
+                        sizeof(struct task) * (task_count - 1 - found_idx));
+            }
+
+            *count_ptr = task_count - 1;
+            write(rep_fd, &ans_ok, 2);
+        } else {
+            write(rep_fd, &ans_err, 2); 
+            write(rep_fd, &err_nf, 2);
+        }
+        close(rep_fd);
+        return;
+    }
+
 
     // --- LIST (-l) ---
     if (opcode == OPCODE_LIST) {
@@ -146,17 +243,17 @@ void handle_client_request(int req_fd, struct task **tasks, size_t *task_count) 
 
         for (size_t i = 0; i < task_count; i++) {
             // ID
-            uint64_t id = htobe64((tasks)[i].taskid);
+            uint64_t id = htobe64(tasks[i].taskid);
             write(rep_fd, &id, 8);
 
             // Timing
-            uint64_t min = htobe64((tasks)[i].timing.minutes);
-            uint32_t hour = htobe32((tasks)[i].timing.hours);
+            uint64_t min = htobe64(tasks[i].timing.minutes);
+            uint32_t hour = htobe32(tasks[i].timing.hours);
             
             write(rep_fd, &min, 8);
             write(rep_fd, &hour, 4);
-            write(rep_fd, &(tasks)[i].timing.daysofweek, 1);
-            write_command_to_fd(rep_fd, (tasks)[i].command);
+            write(rep_fd, &tasks[i].timing.daysofweek, 1);
+            write_command_to_fd(rep_fd, tasks[i].command);
         }
         
         close(rep_fd);
@@ -179,9 +276,9 @@ void handle_client_request(int req_fd, struct task **tasks, size_t *task_count) 
 
     //Recherche de la tâche (Pour erreur ERNF)
     struct task *target_task = NULL;
-    for (size_t i = 0; i < *task_count; i++) {
-        if ((*tasks)[i].taskid == target_id) {
-            target_task = &(*tasks)[i];
+    for (size_t i = 0; i < task_count; i++) {
+        if (tasks[i].taskid == target_id) {
+            target_task = &tasks[i];
             break;
         }
     }

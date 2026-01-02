@@ -53,7 +53,7 @@ int send_request(const char *pipes_dir, uint16_t opcode, uint64_t taskid) {
     return 0;
 }
 
-int send_create_request(const char *pipes_dir, uint64_t minutes, uint32_t hours, uint8_t day,int argc, char **argv); {
+int send_create_request(const char *pipes_dir, uint64_t minutes, uint32_t hours, uint8_t day,int argc, char **argv) {
     char req_pipe_path[MAX_PATH_LEN];
     snprintf(req_pipe_path, sizeof(req_pipe_path), "%s/erraid-request-pipe", pipes_dir);
 
@@ -68,11 +68,11 @@ int send_create_request(const char *pipes_dir, uint64_t minutes, uint32_t hours,
     write(fd, &opcode_be, sizeof(uint16_t));
 
     // TIMING (Minutes, Heures, Jours)
-    uint64_t min_be = htobe64(t.minutes);
-    uint32_t hour_be = htobe32(t.hours);
+    uint64_t min_be = htobe64(minutes);
+    uint32_t hour_be = htobe32(hours);
     write(fd, &min_be, sizeof(uint64_t));
     write(fd, &hour_be, sizeof(uint32_t));
-    write(fd, &t.daysofweek, sizeof(uint8_t));
+    write(fd, &day, sizeof(uint8_t));
 
     // COMMAND (ARGC + Strings)
     uint32_t argc_be = htobe32((uint32_t)argc);

@@ -60,7 +60,8 @@ int main(int argc, char *argv[]) {
     // Analyse des arguments avec getopt
     // "l" ne prend pas d'argument
     // "x:", "o:", "e:", "p:" prennent un argument (indiqué par le :)
-    while ((opt = getopt(argc, argv, "lx:o:e:p:")) != -1) {
+    //ajout des nouveaux arguments r c m h d
+    while ((opt = getopt(argc, argv, "lx:o:e:p:r:cm:H:d:")) != -1) {
         switch (opt) {
             case 'l':
                 action = ACTION_LIST;

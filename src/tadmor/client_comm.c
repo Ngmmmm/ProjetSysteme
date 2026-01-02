@@ -145,7 +145,7 @@ int read_response(const char *pipes_dir, uint16_t original_opcode) {
 
 
 
-int send_combine_request(const char *pipes_dir, uint64_t id_dest, uint64_t id_src) {
+int send_combine_request(const char *pipes_dir, uint16_t type, uint64_t id_dest, uint64_t id_src) {
     char req_pipe_path[MAX_PATH_LEN];
     snprintf(req_pipe_path, sizeof(req_pipe_path), "%s/erraid-request-pipe", pipes_dir);
 
@@ -158,6 +158,10 @@ int send_combine_request(const char *pipes_dir, uint64_t id_dest, uint64_t id_sr
     //Opcode
     uint16_t op_be = htobe16(OPCODE_COMBINE);
     write(fd, &op_be, 2);
+
+    //TYPE
+    uint16_t type_be = htobe16(type);
+    write(fd, &type_be, 2);
 
     //ID Destination
     uint64_t dest_be = htobe64(id_dest);

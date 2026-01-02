@@ -142,3 +142,31 @@ int read_response(const char *pipes_dir, uint16_t original_opcode) {
     close(fd);
     return return_code;
 }
+
+
+
+int send_combine_request(const char *pipes_dir, uint64_t id_dest, uint64_t id_src) {
+    char req_pipe_path[MAX_PATH_LEN];
+    snprintf(req_pipe_path, sizeof(req_pipe_path), "%s/erraid-request-pipe", pipes_dir);
+
+    int fd = open(req_pipe_path, O_WRONLY);
+    if (fd == -1) {
+        write_error("Erreur: Impossible d'ouvrir le tube de requête (Combine)\n");
+        return -1;
+    }
+
+    //Opcode
+    uint16_t op_be = htobe16(OPCODE_COMBINE);
+    write(fd, &op_be, 2);
+
+    //ID Destination
+    uint64_t dest_be = htobe64(id_dest);
+    write(fd, &dest_be, 8);
+
+    //ID Source
+    uint64_t src_be = htobe64(id_src);
+    write(fd, &src_be, 8);
+
+    close(fd);
+    return 0;
+}

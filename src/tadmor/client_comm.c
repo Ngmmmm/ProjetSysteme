@@ -132,6 +132,7 @@ int read_response(const char *pipes_dir, uint16_t original_opcode) {
                 }
                 break;
             case OPCODE_REMOVE: break;
+            case OPCODE_COMBINE: break;
             default: write_line("Réponse OK mais opcode inconnu.");
         }
     } else {

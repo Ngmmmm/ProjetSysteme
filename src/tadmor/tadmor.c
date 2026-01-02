@@ -17,7 +17,8 @@ typedef enum {
     ACTION_STDOUT,          // -o
     ACTION_STDERR,          // -e
     ACTION_CREATE,          // -c
-    ACTION_REMOVE           // -d
+    ACTION_REMOVE,          // -d
+    ACTION_COMBINE          // -s, -p et -i
 } ActionType;
 
 /**
@@ -37,6 +38,9 @@ void print_usage(const char *prog_name) {
     write_error("  -H <heures> Masque heures (Bitmask 32 bits).\n");
     write_error("  -d <jours>  Masque jours (Bitmask 8 bits).\n");
     write_error("  -p <dir>    Répertoire des tubes nommés.\n");
+    write_error("  -s <dst> <src> Combiner Séquentiellement (dst ; src).\n");
+    write_error("  -p <dst> <src> Combiner en Pipeline (dst | src).\n");
+    write_error("  -i <dst> <src> Combiner en Conditionnel (if dst then src).\n");
 }
 
 
@@ -47,6 +51,7 @@ int main(int argc, char *argv[]) {
     // Variables pour stocker la requête
     ActionType action = ACTION_NONE;
     uint64_t target_task_id = 0;
+    uint16_t combine_type = FILE_TYPE_SQ;
 
     uint64_t tm_min = 0xFFFFFFFFFFFFFFFF;
     uint32_t tm_hour = 0xFFFFFFFF;
@@ -60,8 +65,8 @@ int main(int argc, char *argv[]) {
     // Analyse des arguments avec getopt
     // "l" ne prend pas d'argument
     // "x:", "o:", "e:", "p:" prennent un argument (indiqué par le :)
-    //ajout des nouveaux arguments r c m h d
-    while ((opt = getopt(argc, argv, "lx:o:e:p:r:cm:H:d:")) != -1) {
+    //ajout des nouveaux arguments r c m h d k
+    while ((opt = getopt(argc, argv, "lx:o:e:P:r:cm:H:d:p:s:i:")) != -1) {
         switch (opt) {
             case 'l':
                 action = ACTION_LIST;
@@ -82,7 +87,7 @@ int main(int argc, char *argv[]) {
                 target_task_id = strtoull(optarg, NULL, 10);
                 break;
 
-            case 'p':
+            case 'P':
                 // L'utilisateur force un autre chemin pour les pipes
                 strncpy(pipes_directory, optarg, MAX_PATH_LEN - 1);
                 pipes_directory[MAX_PATH_LEN - 1] = '\0'; // Sécurité
@@ -101,6 +106,23 @@ int main(int argc, char *argv[]) {
             case 'H': tm_hour = (uint32_t)strtoul(optarg, NULL, 10); break;
             case 'd': tm_day = (uint8_t)atoi(optarg); break;
 
+            case 's': // Séquence
+                action = ACTION_COMBINE;
+                combine_type = FILE_TYPE_SQ;
+                target_task_id = strtoull(optarg, NULL, 10);
+                break;
+
+            case 'p': // Pipeline
+                action = ACTION_COMBINE;
+                combine_type = FILE_TYPE_PL;
+                target_task_id = strtoull(optarg, NULL, 10);
+                break;
+
+            case 'i': // Conditionnel 
+                action = ACTION_COMBINE;
+                combine_type = FILE_TYPE_IF;
+                target_task_id = strtoull(optarg, NULL, 10); 
+                break;
             default:
                 print_usage(argv[0]);
                 exit(EXIT_FAILURE);
@@ -133,6 +155,19 @@ int main(int argc, char *argv[]) {
     if (action == ACTION_REMOVE) {
         if (send_request(pipes_directory, OPCODE_REMOVE, target_task_id) == 0) {
             return read_response(pipes_directory, OPCODE_REMOVE);
+        }
+        return EXIT_FAILURE;
+    }
+    
+    if (action == ACTION_COMBINE) {
+        if (optind >= argc) {
+            write_error("Erreur: ID Source manquant.\n");
+            return EXIT_FAILURE;
+        }
+        uint64_t source_task_id = strtoull(argv[optind], NULL, 10);
+
+        if (send_combine_request(pipes_directory, combine_type, target_task_id, source_task_id) == 0) {
+            return read_response(pipes_directory, OPCODE_COMBINE);
         }
         return EXIT_FAILURE;
     }

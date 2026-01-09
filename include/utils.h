@@ -30,6 +30,8 @@
 // Signatures binaires pour les types de commandes (utilisées dans parse_command)
 #define FILE_TYPE_SI 0x5349 // 'SI' 
 #define FILE_TYPE_SQ 0x5351 // 'SQ' 
+#define FILE_TYPE_PL 0x504c // 'PL'
+#define FILE_TYPE_IF 0x4946 // 'IF'
 
 
 /**

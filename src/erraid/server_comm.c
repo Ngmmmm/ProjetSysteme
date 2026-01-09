@@ -266,6 +266,114 @@ void handle_client_request(int req_fd, struct task **tasks_ptr, size_t *count_pt
         exit(0);
     }
 
+    // COMBINE (-s, -p, -i) : Fusion de tâches
+    if (opcode == OPCODE_COMBINE) {
+        uint16_t type_be;
+        uint64_t id1_be, id2_be;
+
+        // Lecture des paramètres envoyés par le client (Type + 2 IDs sources)
+        if (read(req_fd, &type_be, 2) != 2) { close(rep_fd); return; }
+        if (read(req_fd, &id1_be, 8) != 8) { close(rep_fd); return; }
+        if (read(req_fd, &id2_be, 8) != 8) { close(rep_fd); return; }
+        
+        uint64_t id1 = be64toh(id1_be);
+        uint64_t id2 = be64toh(id2_be);
+
+        //On s'assure que les IDs existent
+        int found1 = 0, found2 = 0;
+        for (size_t i = 0; i < task_count; i++) {
+            if (tasks[i].taskid == id1) found1 = 1;
+            if (tasks[i].taskid == id2) found2 = 1;
+        }
+
+        if (!found1 || !found2) {
+             write(rep_fd, &ans_err, 2);
+             write(rep_fd, &err_nf, 2); // Code Not Found
+             close(rep_fd);
+             return;
+        }
+
+        // Création structure : Nouvel ID et dossiers
+        uint64_t max_id = 0;
+        for(size_t i=0; i < task_count; i++) {
+            if(tasks[i].taskid > max_id) max_id = tasks[i].taskid;
+        }
+        uint64_t new_id = max_id + 1;
+
+        char new_task_dir[MAX_PATH_LEN];
+        char new_cmd_dir[MAX_PATH_LEN];
+        // Construction des chemins absolus
+        snprintf(new_task_dir, MAX_PATH_LEN, "%s/tasks/%lu", g_root_dir, new_id);
+        snprintf(new_cmd_dir, MAX_PATH_LEN, "%s/cmd", new_task_dir);
+        
+        // Création des répertoires
+        if (mkdir(new_task_dir, 0755) == -1 || mkdir(new_cmd_dir, 0755) == -1) {
+            write(rep_fd, &ans_err, 2);
+            close(rep_fd);
+            return;
+        }
+
+        // Création du fichier 'type' pour la nouvelle commande (SQ, PL ou IF)
+        char path[MAX_PATH_LEN];
+        snprintf(path, MAX_PATH_LEN, "%s/type", new_cmd_dir);
+        int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        if (fd != -1) {
+            write(fd, &type_be, 2); // Écrit le type
+            close(fd);
+        }
+
+        // Création d'un fichier 'timing' par défaut (tout à 1 = exécution tout le temps)
+        // Nécessaire pour que load_all_tasks puisse charger la tâche.
+        snprintf(path, MAX_PATH_LEN, "%s/timing", new_task_dir);
+        fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        if (fd != -1) {
+            uint64_t min = 0xFFFFFFFFFFFFFFFF;
+            uint32_t hour = 0xFFFFFFFF;
+            uint8_t day = 0xFF;
+            write(fd, &min, 8);
+            write(fd, &hour, 4);
+            write(fd, &day, 1);
+            close(fd);
+        }
+
+        // Déplacement : Rename tasks/Y/cmd -> tasks/X/cmd/index
+        char src_path[MAX_PATH_LEN];
+        char dst_path[MAX_PATH_LEN];
+
+        // Déplacement de la tâche source 1 vers l'index 0
+        snprintf(src_path, MAX_PATH_LEN, "%s/tasks/%lu/cmd", g_root_dir, id1);
+        snprintf(dst_path, MAX_PATH_LEN, "%s/0", new_cmd_dir);
+        rename(src_path, dst_path);
+
+        // Déplacement de la tâche source 2 vers l'index 1
+        snprintf(src_path, MAX_PATH_LEN, "%s/tasks/%lu/cmd", g_root_dir, id2);
+        snprintf(dst_path, MAX_PATH_LEN, "%s/1", new_cmd_dir);
+        rename(src_path, dst_path);
+
+        // Suppression des anciennes tâches
+        // Comme le dossier 'cmd' a été déplacé, delete_task_from_disk supprimera
+        // le dossier racine (tasks/ID) et les fichiers restants (timing, stdout...).
+        delete_task_from_disk(id1);
+        delete_task_from_disk(id2);
+
+        // Libération de la mémoire actuelle
+        for (size_t i = 0; i < task_count; i++) {
+            free_command(tasks[i].command);
+        }
+        free(tasks);
+
+        // met à jour le pointeur du main
+        *tasks_ptr = load_all_tasks(count_ptr);
+
+        // Réponse OK avec le nouvel ID
+        write(rep_fd, &ans_ok, 2);
+        uint64_t new_id_be = htobe64(new_id);
+        write(rep_fd, &new_id_be, 8);
+        
+        close(rep_fd);
+        return;
+    }
+
     // COMMANDES CIBLÉES (-x, -o, -e)
     uint64_t taskid_be;
     if (read(req_fd, &taskid_be, 8) != 8) {

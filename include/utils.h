@@ -40,7 +40,7 @@ void print_str(const char *str);
  */
 void write_error(const char *prefix);
 
-// Nouvelles fonctions de lecture (big-endian)
+// Fonctions de lecture (big-endian)
 int read_u16_be(int fd, uint16_t *val);
 int read_u32_be(int fd, uint32_t *val);
 int read_u64_be(int fd, uint64_t *val);

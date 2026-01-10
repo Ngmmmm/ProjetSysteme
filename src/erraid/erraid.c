@@ -24,10 +24,10 @@ int main(int argc, char *argv[]) {
     if (!user) user = "unknown";
     snprintf(g_root_dir, sizeof(g_root_dir), "/tmp/%s/erraid", user);
 
-    // Gestion de l'option -r (pour les tests)
+    // Gestion de l'option -R (pour les tests)
     int opt;
-    while ((opt = getopt(argc, argv, "r:")) != -1) {
-        if (opt == 'r') {
+    while ((opt = getopt(argc, argv, "R:")) != -1) {
+        if (opt == 'R') {
             strncpy(g_root_dir, optarg, sizeof(g_root_dir) - 1);
             g_root_dir[sizeof(g_root_dir) - 1] = '\0';
         }

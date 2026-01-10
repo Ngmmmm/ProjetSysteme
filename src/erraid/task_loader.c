@@ -309,10 +309,36 @@ struct task *load_all_tasks(size_t *task_count) {
     return task_array;
 }
 
+int recursive_rmdir(const char *path) {
+    DIR *d = opendir(path);
+    if (!d) return -1;
+
+    struct dirent *p;
+    while ((p = readdir(d))) {
+        // On ignore . et .. 
+        if (!strcmp(p->d_name, ".") || !strcmp(p->d_name, "..")) continue;
+
+        char buf[MAX_PATH_LEN];
+        snprintf(buf, sizeof(buf), "%s/%s", path, p->d_name);
+
+        struct stat statbuf;
+        if (lstat(buf, &statbuf) == -1) continue;
+
+        if (S_ISDIR(statbuf.st_mode)) {
+            recursive_rmdir(buf); 
+        } else {
+            unlink(buf); 
+        }
+    }
+    closedir(d);
+    return rmdir(path);
+}
+
 int delete_task_from_disk(uint64_t id) {
-    char cmd[MAX_PATH_LEN + 64];
-    snprintf(cmd, sizeof(cmd), "rm -rf %s/tasks/%lu", g_root_dir, id);
-    return system(cmd);
+    char path[MAX_PATH_LEN];
+    snprintf(path, MAX_PATH_LEN, "%s/tasks/%lu", g_root_dir, id);
+    
+    return recursive_rmdir(path);
 }
 
 // Sauvegarde une structure task complète sur le disque

@@ -18,7 +18,7 @@
 
 
 void sigchld_handler(int signum) {
-    int saved_errno = errno;
+    int saved_errno = errno;    
     while (waitpid(-1, NULL, WNOHANG) > 0);
     errno = saved_errno;
 }
@@ -144,9 +144,6 @@ static int execute_conditional(struct command *cmd, uint64_t taskid) {
 /**
  * Exécute les sous-commandes d'une séquence l'une après l'autre.
  * S'interrompt immédiatement si une sous-commande échoue.
- * @param cmd La commande séquence (SQ).
- * @param taskid Identifiant de la tâche (pour les logs).
- * @return 0 si tout réussit, ou le code de retour de la commande qui ne fonctionne pas.
  */
 int execute_sequence_command_in_terminal(struct command *cmd, uint64_t taskid) {
     int last_exit_code = 0;
@@ -161,9 +158,6 @@ int execute_sequence_command_in_terminal(struct command *cmd, uint64_t taskid) {
 
 /**
  * Exécute une commande simple (SI) et attend son achèvement.
- * @param cmd La structure de commande à exécuter (doit être de type "SI").
- * @param taskid ajout de taskid pour les logs
- * @return Le code de sortie de la commande 0, ou -1 en cas d'échec de fork.
  */
 int execute_simple_command_in_terminal(struct command *cmd, uint64_t taskid) { 
     if (cmd == NULL || strcmp(cmd->type, "SI") != 0 || cmd->argc < 1) return -1;
@@ -172,7 +166,7 @@ int execute_simple_command_in_terminal(struct command *cmd, uint64_t taskid) {
     if (pid == -1) return -1;
 
     if (pid == 0) {
-        // --- Fils (exécution finale) ---
+        // Fils (exécution finale)
         char stdout_path[MAX_PATH_LEN], stderr_path[MAX_PATH_LEN];
         
         snprintf(stdout_path, MAX_PATH_LEN, "%s/tasks/%lu/stdout", g_root_dir, taskid);
@@ -204,7 +198,7 @@ int execute_simple_command_in_terminal(struct command *cmd, uint64_t taskid) {
         fprintf(stderr, "Erreur execvp '%s': %s\n", cmd->argv[0], strerror(errno));
         exit(127);
     } else {
-        // --- Père ---
+        // Père
         int wstatus;
         if (waitpid(pid, &wstatus, 0) == -1) return -1;
         return WIFEXITED(wstatus) ? WEXITSTATUS(wstatus) : -1;
@@ -214,9 +208,6 @@ int execute_simple_command_in_terminal(struct command *cmd, uint64_t taskid) {
 /**
  * Fonction pour exécuter n'importe quel type de commande.
  * La sortie et l'erreur sont maintenant redirigées vers les fichiers.
- * @param cmd La structure de commande (SI ou SQ).
- * @param taskid ajout de taskid
- * @return Le code de sortie final, ou -1 en cas d'erreur.
  */
 int execute_command_in_terminal(struct command *cmd, uint64_t taskid) { 
     if (!cmd) return -1;
@@ -229,9 +220,6 @@ int execute_command_in_terminal(struct command *cmd, uint64_t taskid) {
 
 /**
  * Vérifie si une tâche doit être exécutée maintenant.
- * @param t La tâche à vérifier.
- * @param now L'heure actuelle.
- * @return 1 si c'est l'heure, 0 sinon.
  */
 int is_time_to_run(struct task *t, struct tm *now) {
     uint64_t min_bit = (uint64_t)1 << now->tm_min;
@@ -247,8 +235,6 @@ int is_time_to_run(struct task *t, struct tm *now) {
 /**
  * Enregistre le timestamp actuel et le code de sortie dans le journal de la tâche.
  * Ajoute une entrée binaire au fichier 'times-exitcodes'.
- * @param taskid Identifiant de la tâche.
- * @param exit_code Code de retour (enregistré comme 0xFFFF si -1).
  */
 void log_execution(uint64_t taskid, int exit_code) {
     char log_path[MAX_PATH_LEN];

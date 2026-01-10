@@ -16,6 +16,7 @@
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 
 
 
@@ -43,10 +44,9 @@ void daemonize() {
     umask(0);
     chdir("/");
 
-    int x;
-    for (x = sysconf(_SC_OPEN_MAX); x >= 0; x--) {
-        close(x);
-    }
+    close(STDIN_FILENO);
+    close(STDOUT_FILENO);
+    close(STDERR_FILENO);
     
     int fd0 = open("/dev/null", O_RDWR); 
     int fd1 = dup(0);                    

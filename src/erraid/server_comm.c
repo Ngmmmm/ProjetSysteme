@@ -85,11 +85,14 @@ void init_communication() {
 void write_command_to_fd(int fd, struct command *cmd) {
     if (!cmd) return;
 
+    // Commande simple SI
     if (strcmp(cmd->type, "SI") == 0) {
         write(fd, "SI", 2);
+        // Écriture du nombre d’arguments (big-endian)
         uint32_t argc_be = htobe32((uint32_t)cmd->argc);
         write(fd, &argc_be, sizeof(argc_be));
 
+        // Écriture de chaque argument : longueur + contenu
         for (int i = 0; i < cmd->argc; i++) {
             char *arg = cmd->argv[i];
             uint32_t len = strlen(arg);
@@ -98,11 +101,14 @@ void write_command_to_fd(int fd, struct command *cmd) {
             write(fd, arg, len);
         }
 
+    // Séquence de commandes SQ
     } else if (strcmp(cmd->type, "SQ") == 0) {
         write(fd, "SQ", 2);
+        // Écriture du nombre de sous-commandes (big-endian)
         uint32_t sub_be = htobe32((uint32_t)cmd->subcount);
         write(fd, &sub_be, sizeof(sub_be));
 
+        // Sérialisation récursive de chaque sous-commande
         for (size_t i = 0; i < cmd->subcount; i++) {
             write_command_to_fd(fd, &cmd->subcommands[i]);
         }
@@ -435,7 +441,7 @@ void handle_client_request(int req_fd, struct task **tasks_ptr, size_t *count_pt
 
         // On essaie d'ouvrir pour voir si le fichier existe
         if (access(file_path, F_OK) == -1) {
-             // Fichier inexistant -> ERNR
+            // Fichier inexistant -> ERNR
             write(rep_fd, &ans_err, 2);
             write(rep_fd, &err_nr, 2);
         } else {

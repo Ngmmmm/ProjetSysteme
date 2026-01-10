@@ -15,43 +15,6 @@
 #include <signal.h>
 #include <fcntl.h>
 #include <sys/wait.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-
-void stop_handler(int sig) {
-    (void)sig;
-    g_running = 0;
-}
-
-void daemonize() {
-    pid_t pid;
-
-    pid = fork();
-    if (pid < 0) exit(EXIT_FAILURE);
-    if (pid > 0) exit(EXIT_SUCCESS);
-
-    if (setsid() < 0) exit(EXIT_FAILURE);
-
-    signal(SIGCHLD, SIG_IGN);
-    signal(SIGHUP, SIG_IGN);
-
-    pid = fork();
-    if (pid < 0) exit(EXIT_FAILURE);
-    if (pid > 0) exit(EXIT_SUCCESS);
-
-    umask(0);
-    chdir("/");
-
-    int x;
-    for (x = sysconf(_SC_OPEN_MAX); x >= 0; x--) {
-        close(x);
-    }
-    
-    int fd0 = open("/dev/null", O_RDWR); 
-    int fd1 = dup(0);                    
-    int fd2 = dup(0);                   
-    (void)fd0; (void)fd1; (void)fd2;
-}
 
 
 
@@ -62,21 +25,12 @@ int main(int argc, char *argv[]) {
     snprintf(g_root_dir, sizeof(g_root_dir), "/tmp/%s/erraid", user);
 
     // Gestion de l'option -r (pour les tests)
-    int foreground = 0;
     int opt;
-    while ((opt = getopt(argc, argv, "Fr:")) != -1) {
-        switch (opt) {
-            case 'F':
-                foreground = 1;
-                break;
-            case 'r':
-                strncpy(g_root_dir, optarg, sizeof(g_root_dir) - 1);
-                g_root_dir[sizeof(g_root_dir) - 1] = '\0';
-                break;
+    while ((opt = getopt(argc, argv, "r:")) != -1) {
+        if (opt == 'r') {
+            strncpy(g_root_dir, optarg, sizeof(g_root_dir) - 1);
+            g_root_dir[sizeof(g_root_dir) - 1] = '\0';
         }
-    }
-    if (!foreground) {
-        daemonize();
     }
 
 
@@ -85,13 +39,6 @@ int main(int argc, char *argv[]) {
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
     sigaction(SIGCHLD, &sa, NULL);
-
-    struct sigaction sa_stop;
-    sa_stop.sa_handler = stop_handler;
-    sigemptyset(&sa_stop.sa_mask);
-    sa_stop.sa_flags = 0;
-    sigaction(SIGINT, &sa_stop, NULL);  
-    sigaction(SIGTERM, &sa_stop, NULL);
 
     char buffer[MAX_PATH_LEN + 64];
     snprintf(buffer, sizeof(buffer), " Démon erraid démarré sur : %s ", g_root_dir);
@@ -122,7 +69,7 @@ int main(int argc, char *argv[]) {
         last_min = -1;
     }
 
-    while (g_running) {
+    while (1) {
         time_t now = time(NULL);
         struct tm *tm_now = localtime(&now);
 
@@ -147,8 +94,6 @@ int main(int argc, char *argv[]) {
                         sigemptyset(&sa_dfl.sa_mask);
                         sa_dfl.sa_flags = 0;
                         sigaction(SIGCHLD, &sa_dfl, NULL);
-                        
-                        chdir(g_root_dir);
 
                         // Troncature des fichiers de logs ici (dans le fils uniquement)
                         char p_out[MAX_PATH_LEN], p_err[MAX_PATH_LEN];
@@ -201,14 +146,6 @@ int main(int argc, char *argv[]) {
     }
     free(all_tasks);
     if (g_request_fd != -1) close(g_request_fd);
-
-    char pipe_path[MAX_PATH_LEN];
-    snprintf(pipe_path, MAX_PATH_LEN, "%s/pipes/erraid-request-pipe", g_root_dir);
-    unlink(pipe_path);
-    snprintf(pipe_path, MAX_PATH_LEN, "%s/pipes/erraid-reply-pipe", g_root_dir);
-    unlink(pipe_path);
-
-    if (foreground) write_line("Arrêt propre du démon.");
 
     return 0;
 }

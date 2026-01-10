@@ -36,11 +36,11 @@ struct timing {
 struct command {
     char type[3]; // "SI" ou "SQ"
 
-    // --- Pour le type "SI" ---
+    // Pour le type "SI"
     int argc;     
     char **argv;  
 
-    // --- Pour le type "SQ" ---
+    // Pour le type "SQ"
     struct command *subcommands; 
     size_t subcount;             
 };

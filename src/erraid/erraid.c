@@ -72,8 +72,8 @@ int main(int argc, char *argv[]) {
                 foreground = 1;
                 break;
             case 'R':
-            strncpy(g_root_dir, optarg, sizeof(g_root_dir) - 1);
-            g_root_dir[sizeof(g_root_dir) - 1] = '\0';
+                strncpy(g_root_dir, optarg, sizeof(g_root_dir) - 1);
+                g_root_dir[sizeof(g_root_dir) - 1] = '\0';
                 break;
         }
     }

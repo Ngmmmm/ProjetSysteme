@@ -11,77 +11,82 @@
 
 
 void deserialize_and_print_cmd(int fd, int is_root) {
-    char type[3]; 
+    char type[3];
+
     if (read(fd, type, 2) != 2) return;
     type[2] = '\0';
 
+    /* Commande simple */
     if (strcmp(type, "SI") == 0) {
         uint32_t argc_be;
         read(fd, &argc_be, 4);
         uint32_t argc = be32toh(argc_be);
 
+        // Lecture et affichage de chaque argument
         for (uint32_t i = 0; i < argc; i++) {
             char *arg = read_string_from_pipe(fd);
             if (arg) {
-                print_str(arg); 
+                print_str(arg);
                 if (i < argc - 1) print_str(" ");
                 free(arg);
             }
         }
-    } 
+    }
+    /* Séquence de commandes */
     else if (strcmp(type, "SQ") == 0) {
         uint32_t sub_be;
         read(fd, &sub_be, 4);
         uint32_t subcount = be32toh(sub_be);
 
-        //On n'affiche ( que si c pas la racine
         if (!is_root) print_str("( ");
-        
+
         for (uint32_t i = 0; i < subcount; i++) {
-            //Les enfants sont jamais la racine donc 0
-            deserialize_and_print_cmd(fd, 0); 
-            
+            deserialize_and_print_cmd(fd, 0);
             if (i < subcount - 1) print_str(" ; ");
         }
+
         if (!is_root) print_str(" )");
     }
+    /* Pipeline de commandes */
     else if (strcmp(type, "PL") == 0) {
         uint32_t sub_be;
         if (read(fd, &sub_be, 4) != 4) return;
         uint32_t subcount = be32toh(sub_be);
 
         if (!is_root) print_str("( ");
-        
+
         for (uint32_t i = 0; i < subcount; i++) {
-            deserialize_and_print_cmd(fd, 0); 
+            deserialize_and_print_cmd(fd, 0);
             if (i < subcount - 1) print_str(" | ");
         }
+
         if (!is_root) print_str(" )");
     }
+    /* Structure conditionnelle if / then / else */
     else if (strcmp(type, "IF") == 0) {
         uint32_t sub_be;
         if (read(fd, &sub_be, 4) != 4) return;
 
         if (!is_root) print_str("( ");
-        
+
         print_str("if ");
         deserialize_and_print_cmd(fd, 0);
-        
+
         print_str(" ; then ");
         deserialize_and_print_cmd(fd, 0);
-        
+
         print_str(" ; else ");
         deserialize_and_print_cmd(fd, 0);
-        
+
         print_str(" ; fi");
-        
+
         if (!is_root) print_str(" )");
     }
 }
 
 
 void handle_list_reponse(int fd) {
-    uint32_t nb_tasks_be; 
+    uint32_t nb_tasks_be;
     if (read(fd, &nb_tasks_be, 4) != 4) return;
     uint32_t nb_tasks = be32toh(nb_tasks_be);
 
@@ -94,17 +99,20 @@ void handle_list_reponse(int fd) {
         uint32_t hour_be;
         uint8_t day;
 
-        read(fd, &id_be, 8); 
+        read(fd, &id_be, 8);
         read(fd, &min_be, 8);
         read(fd, &hour_be, 4);
         read(fd, &day, 1);
 
+        // Affichage de l’identifiant
         snprintf(buf, sizeof(buf), "%lu: ", be64toh(id_be));
         print_str(buf);
 
+        // Affichage du timing
         print_timing_complex(be64toh(min_be), be32toh(hour_be), day);
         print_str(" ");
 
+        // Affichage de la commande
         deserialize_and_print_cmd(fd, 1);
         print_str("\n");
     }
@@ -123,6 +131,7 @@ void handle_runs_reponse(int fd) {
         int64_t time_val_be;
         uint16_t exit_code_be;
 
+        // Lecture du timestamp et du code de retour
         read(fd, &time_val_be, 8);
         read(fd, &exit_code_be, 2);
 
@@ -146,6 +155,7 @@ void handle_output_reponse(int fd) {
     // Copie du contenu brut vers la sortie standard
     char content_buf[1024];
     uint32_t remaining = len;
+    // Lecture par blocs pour éviter de gros buffers
     while (remaining > 0) {
         int to_read = (remaining > sizeof(content_buf)) ? sizeof(content_buf) : remaining;
         int n = read(fd, content_buf, to_read);

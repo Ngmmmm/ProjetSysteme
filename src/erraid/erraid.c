@@ -109,7 +109,7 @@ int main(int argc, char *argv[]) {
                         int exit_code = execute_command_in_terminal(t->command, t->taskid);
                         log_execution(t->taskid, exit_code);
                         
-                        exit(0); // Le fils termine ici
+                        exit(0);
                     }
                 }
 

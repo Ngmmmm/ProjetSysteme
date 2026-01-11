@@ -25,8 +25,7 @@
 #define FILE_TYPE_PL 0x504c // 'PL'
 #define FILE_TYPE_IF 0x4946 // 'IF'
 
-#define FILE_TYPE_PL 0x504C // 'PL' 
-#define FILE_TYPE_IF 0x4946 // 'IF'
+
 
 
 /**

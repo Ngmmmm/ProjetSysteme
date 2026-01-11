@@ -18,7 +18,8 @@ typedef enum {
     ACTION_STDERR,          // -e
     ACTION_CREATE,          // -c
     ACTION_REMOVE,          // -d
-    ACTION_COMBINE          // -s, -p et -i
+    ACTION_COMBINE,          // -s, -p et -i
+    ACTION_TERMINATE
 } ActionType;
 
 /**
@@ -41,6 +42,7 @@ void print_usage(const char *prog_name) {
     write_error("  -s <dst> <src> Combiner Séquentiellement (dst ; src).\n");
     write_error("  -P <dst> <src> Combiner en Pipeline (dst | src).\n");
     write_error("  -i <dst> <src> Combiner en Conditionnel (if dst then src).\n");
+    write_error("  -q Arrete le démon.\n");
 }
 
 
@@ -53,6 +55,7 @@ int main(int argc, char *argv[]) {
     uint64_t target_task_id = 0;
     uint16_t combine_type = FILE_TYPE_SQ;
 
+    int flag_no_schedule = 0;
     uint64_t tm_min = 0xFFFFFFFFFFFFFFFF;
     uint32_t tm_hour = 0xFFFFFFFF;
     uint8_t tm_day = 0xFF;
@@ -66,7 +69,7 @@ int main(int argc, char *argv[]) {
     // "l" ne prend pas d'argument
     // "x:", "o:", "e:", "P:" prennent un argument (indiqué par le :)
     //ajout des nouveaux arguments r c m h d k
-    while ((opt = getopt(argc, argv, "lx:o:e:P:r:cm:H:d:p:s:i:")) != -1) {
+    while ((opt = getopt(argc, argv, "+lx:o:e:P:r:cm:H:d:p:s:i:nq")) != -1) {
         switch (opt) {
             case 'l':
                 action = ACTION_LIST;
@@ -102,9 +105,25 @@ int main(int argc, char *argv[]) {
                 action = ACTION_CREATE; 
                 break;
 
-            case 'm': tm_min = strtoull(optarg, NULL, 10); break;
-            case 'H': tm_hour = (uint32_t)strtoul(optarg, NULL, 10); break;
-            case 'd': tm_day = (uint8_t)atoi(optarg); break;
+            case 'n':
+            flag_no_schedule = 1;
+            break;
+
+            case 'm':
+                int val1 = atoi(optarg);
+                tm_min = (1ULL << val1); 
+                break;
+            
+            case 'H': 
+                int val2 = atoi(optarg);
+                tm_hour = (1 << val2); 
+                break;
+            
+            case 'd': 
+                int val3 = atoi(optarg);
+                tm_day = (1 << val3); 
+                break;
+            
 
             case 's': // Séquence
                 action = ACTION_COMBINE;
@@ -123,6 +142,9 @@ int main(int argc, char *argv[]) {
                 combine_type = FILE_TYPE_IF;
                 target_task_id = strtoull(optarg, NULL, 10); 
                 break;
+            case 'q': // Arret
+                action = ACTION_TERMINATE;
+                break;
             default:
                 print_usage(argv[0]);
                 exit(EXIT_FAILURE);
@@ -136,12 +158,19 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-
+    if (flag_no_schedule) {
+    
+    tm_min = 0;
+    tm_hour = 0;
+    tm_day = 0;
+    }
     if (action == ACTION_CREATE) {
-        int cmd_argc = argc - optind;
-        char **cmd_argv = &argv[optind];
-
-        if (cmd_argc < 1) {
+        char **cmd_argv = NULL;
+        int cmd_argc = 0;
+        if (optind < argc) {
+            cmd_argv = &argv[optind];
+            cmd_argc = argc - optind;
+        } else {
             write_error("Erreur: Commande manquante pour création (-c).\n");
             print_usage(argv[0]);
             return EXIT_FAILURE;
@@ -186,6 +215,9 @@ int main(int argc, char *argv[]) {
             break;
         case ACTION_STDERR:
             opcode = OPCODE_STDERR;
+            break;
+        case ACTION_TERMINATE: 
+            opcode = OPCODE_TERMINATE;
             break;
         default:
             write_line("Action inconnue.\n");

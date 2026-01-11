@@ -120,6 +120,7 @@ int read_response(const char *pipes_dir, uint16_t original_opcode) {
             case OPCODE_TIMES_EXITCODES: handle_runs_reponse(fd); break;
             case OPCODE_STDOUT:
             case OPCODE_STDERR: handle_output_reponse(fd); break;
+            case OPCODE_TERMINATE: write_line("Succès : Le démon s'est arrêté proprement."); break;
 
             case OPCODE_CREATE: 
                 {
@@ -132,7 +133,16 @@ int read_response(const char *pipes_dir, uint16_t original_opcode) {
                 }
                 break;
             case OPCODE_REMOVE: break;
-            case OPCODE_COMBINE: break;
+            case OPCODE_COMBINE: {
+                    uint64_t new_id_be;
+                    // On lit 8 octets (l'ID retourné par le serveur)
+                    if (read(fd, &new_id_be, 8) == 8) {
+                        char buf[64];
+                        snprintf(buf, sizeof(buf), "%lu\n", be64toh(new_id_be));
+                        print_str(buf); 
+                    }
+                }
+                break;
             default: write_line("Réponse OK mais opcode inconnu.");
         }
     } else {

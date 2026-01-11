@@ -63,10 +63,11 @@ int main(int argc, char *argv[]) {
     if (!user) user = "unknown";
     snprintf(g_root_dir, sizeof(g_root_dir), "/tmp/%s/erraid", user);
 
-    // Gestion de l'option -R
+    // Gestion de l'option -R , F, P
     int foreground = 0;
     int opt;
-    while ((opt = getopt(argc, argv, "FR:")) != -1) {
+    char pipes_directory[MAX_PATH_LEN];
+    while ((opt = getopt(argc, argv, "FR:P:")) != -1) {
         switch (opt) {
             case 'F':
                 foreground = 1;
@@ -74,6 +75,11 @@ int main(int argc, char *argv[]) {
             case 'R':
                 strncpy(g_root_dir, optarg, sizeof(g_root_dir) - 1);
                 g_root_dir[sizeof(g_root_dir) - 1] = '\0';
+                break;
+            case 'P':
+            // L'utilisateur force un autre chemin pour les pipes
+                strncpy(pipes_directory, optarg, MAX_PATH_LEN - 1);
+                pipes_directory[MAX_PATH_LEN - 1] = '\0'; // Sécurité
                 break;
         }
     }

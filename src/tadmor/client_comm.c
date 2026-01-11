@@ -120,6 +120,7 @@ int read_response(const char *pipes_dir, uint16_t original_opcode) {
             case OPCODE_TIMES_EXITCODES: handle_runs_reponse(fd); break;
             case OPCODE_STDOUT:
             case OPCODE_STDERR: handle_output_reponse(fd); break;
+            case OPCODE_TERMINATE: write_line("Succès : Le démon s'est arrêté proprement."); break;
 
             case OPCODE_CREATE: 
                 {

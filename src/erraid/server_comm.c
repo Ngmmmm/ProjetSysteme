@@ -285,6 +285,12 @@ void handle_client_request(int req_fd, struct task **tasks_ptr, size_t *count_pt
     if (opcode == OPCODE_TERMINATE) {
         write(rep_fd, &ans_ok, 2);
         close(rep_fd);
+
+        pid_t parent_pid = getppid();
+
+        if (parent_pid != getpid()) {
+            kill(parent_pid, SIGTERM); 
+        }
         exit(0);
     }
 

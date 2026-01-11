@@ -87,7 +87,7 @@ int main(int argc, char *argv[]) {
                 target_task_id = strtoull(optarg, NULL, 10);
                 break;
 
-            case 'P':
+            case 'p':
                 // L'utilisateur force un autre chemin pour les pipes
                 strncpy(pipes_directory, optarg, MAX_PATH_LEN - 1);
                 pipes_directory[MAX_PATH_LEN - 1] = '\0'; // Sécurité
@@ -124,7 +124,7 @@ int main(int argc, char *argv[]) {
                 target_task_id = strtoull(optarg, NULL, 10);
                 break;
 
-            case 'p': // Pipeline
+            case 'P': // Pipeline
                 action = ACTION_COMBINE;
                 combine_type = FILE_TYPE_PL;
                 target_task_id = strtoull(optarg, NULL, 10);

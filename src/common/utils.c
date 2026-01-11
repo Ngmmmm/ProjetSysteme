@@ -114,21 +114,79 @@ void print_command(struct command *cmd, int indent) {
     }
 }
 
+
+int is_complex(struct command *cmd) {
+    return (strcmp(cmd->type, "SI") != 0);
+}
+
 void serialize_command_to_buffer(struct command *cmd, char *buffer, size_t size) {
     if (strlen(buffer) >= size - 1) return; 
     
+    // CAS SIMPLE (SI) 
     if (strcmp(cmd->type, "SI") == 0) {
         for (int i = 0; i < cmd->argc; i++) {
             strncat(buffer, cmd->argv[i], size - strlen(buffer) - 1);
             if (i < cmd->argc - 1) strncat(buffer, " ", size - strlen(buffer) - 1);
         }
-    } else {
+    } 
+    // CAS SÉQUENCE (SQ) 
+    else if (strcmp(cmd->type, "SQ") == 0) {
         strncat(buffer, "(", size - strlen(buffer) - 1);
         for (size_t i = 0; i < cmd->subcount; i++) {
             serialize_command_to_buffer(&cmd->subcommands[i], buffer, size);
             if (i < cmd->subcount - 1) strncat(buffer, "; ", size - strlen(buffer) - 1);
         }
         strncat(buffer, ")", size - strlen(buffer) - 1);
+    }
+
+    //  CAS PIPELINE (PL)
+    else if (strcmp(cmd->type, "PL") == 0) {
+        strncat(buffer, "(", size - strlen(buffer) - 1);
+        for (size_t i = 0; i < cmd->subcount; i++) {
+            serialize_command_to_buffer(&cmd->subcommands[i], buffer, size);
+            if (i < cmd->subcount - 1) strncat(buffer, " | ", size - strlen(buffer) - 1);
+        }
+        strncat(buffer, ")", size - strlen(buffer) - 1);
+    }
+    else if (strcmp(cmd->type, "IF") == 0) {
+        // Format : if CMD1 [;] then CMD2 [;] [else CMD3] fi
+        
+        strncat(buffer, "if ", size - strlen(buffer) - 1);
+        
+        //  Condition (CMD1)
+        if (cmd->subcount > 0) {
+            serialize_command_to_buffer(&cmd->subcommands[0], buffer, size);
+
+            if (!is_complex(&cmd->subcommands[0])) {
+                strncat(buffer, " ;", size - strlen(buffer) - 1);
+            }
+        }
+
+        strncat(buffer, " then ", size - strlen(buffer) - 1);
+
+        //  Branche THEN (CMD2)
+        if (cmd->subcount > 1) {
+            serialize_command_to_buffer(&cmd->subcommands[1], buffer, size);
+        }
+
+        //  Branche ELSE (CMD3) 
+        if (cmd->subcount > 2) {
+
+            if (!is_complex(&cmd->subcommands[1])) {
+                strncat(buffer, " ;", size - strlen(buffer) - 1);
+            }
+            
+            strncat(buffer, " else ", size - strlen(buffer) - 1);
+            serialize_command_to_buffer(&cmd->subcommands[2], buffer, size);
+        }
+
+
+        struct command *last_cmd = (cmd->subcount > 2) ? &cmd->subcommands[2] : &cmd->subcommands[1];
+        if (!is_complex(last_cmd)) {
+            strncat(buffer, " ;", size - strlen(buffer) - 1);
+        }
+
+        strncat(buffer, " fi", size - strlen(buffer) - 1);
     }
 }
 

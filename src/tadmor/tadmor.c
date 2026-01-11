@@ -102,9 +102,21 @@ int main(int argc, char *argv[]) {
                 action = ACTION_CREATE; 
                 break;
 
-            case 'm': tm_min = strtoull(optarg, NULL, 10); break;
-            case 'H': tm_hour = (uint32_t)strtoul(optarg, NULL, 10); break;
-            case 'd': tm_day = (uint8_t)atoi(optarg); break;
+            case 'm':
+                int val1 = atoi(optarg);
+                tm_min = (1ULL << val1); 
+                break;
+            
+            case 'H': 
+                int val2 = atoi(optarg);
+                tm_hour = (1 << val2); 
+                break;
+            
+            case 'd': 
+                int val3 = atoi(optarg);
+                tm_day = (1 << val3); 
+                break;
+            
 
             case 's': // Séquence
                 action = ACTION_COMBINE;

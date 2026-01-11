@@ -30,14 +30,15 @@ $(BIN_DIR):
 # Règle pour erraid:
 $(BIN_DIR)/erraid: $(ERRAID_SRCS) | $(BIN_DIR)
 	gcc -Wno-format-truncation -I include -o $@ $(ERRAID_SRCS)
+	@echo "==> Nettoyage et création de l'environnement de test dans $(TEST_DIR)"
+	@rm -rf $(TEST_DIR)
+	@mkdir -p $(TEST_DIR)
 
 # Règle pour tadmor:
 $(BIN_DIR)/tadmor: $(TADMOR_SRCS) | $(BIN_DIR)
 	gcc -Wno-format-truncation -I include -o $@ $(TADMOR_SRCS)
 
-	@echo "==> Nettoyage et création de l'environnement de test dans $(TEST_DIR)"
-	@rm -rf $(TEST_DIR)
-	@mkdir -p $(TEST_DIR)
+
 	
 # Nettoyage
 distclean:

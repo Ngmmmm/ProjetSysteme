@@ -41,11 +41,6 @@ int send_file_content(int rep_fd, const char *filepath, int with_header_len) {
 }
 
 void init_communication() {
-
-    if (mkdir(g_root_dir, 0755) == -1 && errno != EEXIST) {
-        write_error("Erreur: Impossible de créer le répertoire racine");
-        exit(EXIT_FAILURE);
-    }
     char pipes_dir[MAX_PATH_LEN];
     char req_pipe[MAX_PATH_LEN];
     char rep_pipe[MAX_PATH_LEN];

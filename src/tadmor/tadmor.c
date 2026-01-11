@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
     // "l" ne prend pas d'argument
     // "x:", "o:", "e:", "P:" prennent un argument (indiqué par le :)
     //ajout des nouveaux arguments r c m h d k
-    while ((opt = getopt(argc, argv, "lx:o:e:P:r:cm:H:d:p:s:i:n")) != -1) {
+    while ((opt = getopt(argc, argv, "+lx:o:e:P:r:cm:H:d:p:s:i:n")) != -1) {
         switch (opt) {
             case 'l':
                 action = ACTION_LIST;
@@ -160,10 +160,12 @@ int main(int argc, char *argv[]) {
     tm_day = 0;
     }
     if (action == ACTION_CREATE) {
-        int cmd_argc = argc - optind;
-        char **cmd_argv = &argv[optind];
-
-        if (cmd_argc < 1) {
+        char **cmd_argv = NULL;
+        int cmd_argc = 0;
+        if (optind < argc) {
+            cmd_argv = &argv[optind];
+            cmd_argc = argc - optind;
+        } else {
             write_error("Erreur: Commande manquante pour création (-c).\n");
             print_usage(argv[0]);
             return EXIT_FAILURE;

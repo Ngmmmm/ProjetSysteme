@@ -27,6 +27,7 @@ int is_directory(const char *path) {
     return S_ISDIR(st.st_mode);
 }
 
+
 /**
  * Libère récursivement les ressources allouées d'une struct command.
  * @note Libère seulement les champs (argv, subcommands).
@@ -258,6 +259,7 @@ int compare_tasks(const void *a, const void *b) {
  * @return Un pointeur vers le tableau de 'struct task', ou NULL en cas d'erreur.
  */
 struct task *load_all_tasks(size_t *task_count) {
+
     char base_dir[MAX_PATH_LEN];
     
     snprintf(base_dir, sizeof(base_dir), "%s/tasks", g_root_dir);
@@ -273,6 +275,7 @@ struct task *load_all_tasks(size_t *task_count) {
     struct dirent *entry;
     while ((entry = readdir(dirp)) != NULL) {
         if (entry->d_name[0] == '.') continue;
+
 
         char current_task_path[MAX_PATH_LEN];
         snprintf(current_task_path, sizeof(current_task_path), "%s/%s", base_dir, entry->d_name);

@@ -42,14 +42,22 @@ int send_file_content(int rep_fd, const char *filepath, int with_header_len) {
 
 void init_communication() {
     char pipes_dir[MAX_PATH_LEN];
+    char tasks_dir[MAX_PATH_LEN];
     char req_pipe[MAX_PATH_LEN];
     char rep_pipe[MAX_PATH_LEN];
 
     // Construction des chemins
     snprintf(pipes_dir, sizeof(pipes_dir), "%s/pipes", g_root_dir);
+    snprintf(tasks_dir, sizeof(tasks_dir), "%s/tasks", g_root_dir);
     snprintf(req_pipe, sizeof(req_pipe), "%s/erraid-request-pipe", pipes_dir);
     snprintf(rep_pipe, sizeof(rep_pipe), "%s/erraid-reply-pipe", pipes_dir);
 
+
+    if (mkdir(g_root_dir, 0755) == -1 && errno != EEXIST) {
+        // Si on ne peut pas loguer sur stderr (car démon), on quitte juste
+        exit(EXIT_FAILURE);
+    }
+    
     // Création du répertoire pipes s'il n'existe pas
     if (mkdir(pipes_dir, 0755) == -1 && errno != EEXIST) {// 0755 = rwxr-xr-x
         write_error("Erreur fatale: Impossible de créer le répertoire pipes");
@@ -59,6 +67,12 @@ void init_communication() {
     // Création du tube de requête
     if (mkfifo(req_pipe, 0644) == -1 && errno != EEXIST) {
         write_error("Erreur fatale: Impossible de créer erraid-request-pipe");
+        exit(EXIT_FAILURE);
+    }
+
+    // Création du répertoire tasks
+    if (mkdir(tasks_dir, 0755) == -1 && errno != EEXIST) {
+        write_error("Erreur fatale: Impossible de créer le répertoire tasks");
         exit(EXIT_FAILURE);
     }
 

@@ -53,6 +53,42 @@ int send_request(const char *pipes_dir, uint16_t opcode, uint64_t taskid) {
     return 0;
 }
 
+int send_create_request(const char *pipes_dir, uint64_t minutes, uint32_t hours, uint8_t day,int argc, char **argv) {
+    char req_pipe_path[MAX_PATH_LEN];
+    snprintf(req_pipe_path, sizeof(req_pipe_path), "%s/erraid-request-pipe", pipes_dir);
+
+    int fd = open(req_pipe_path, O_WRONLY);
+    if (fd == -1) {
+        write_error("Erreur: Impossible d'ouvrir le tube de requête");
+        return -1;
+    }
+
+    // OPCODE ('CR')
+    uint16_t opcode_be = htobe16(OPCODE_CREATE);
+    write(fd, &opcode_be, sizeof(uint16_t));
+
+    // TIMING (Minutes, Heures, Jours)
+    uint64_t min_be = htobe64(minutes);
+    uint32_t hour_be = htobe32(hours);
+    write(fd, &min_be, sizeof(uint64_t));
+    write(fd, &hour_be, sizeof(uint32_t));
+    write(fd, &day, sizeof(uint8_t));
+
+    // COMMAND (ARGC + Strings)
+    uint32_t argc_be = htobe32((uint32_t)argc);
+    write(fd, &argc_be, sizeof(uint32_t));
+
+    for (int i = 0; i < argc; i++) {
+        uint32_t len = strlen(argv[i]);
+        uint32_t len_be = htobe32(len);
+        write(fd, &len_be, sizeof(uint32_t));
+        write(fd, argv[i], len);
+    }
+
+    close(fd);
+    return 0;
+}
+
 
 int read_response(const char *pipes_dir, uint16_t original_opcode) {
     char reply_pipe_path[MAX_PATH_LEN];
@@ -84,6 +120,19 @@ int read_response(const char *pipes_dir, uint16_t original_opcode) {
             case OPCODE_TIMES_EXITCODES: handle_runs_reponse(fd); break;
             case OPCODE_STDOUT:
             case OPCODE_STDERR: handle_output_reponse(fd); break;
+
+            case OPCODE_CREATE: 
+                {
+                    uint64_t new_id_be;
+                    if (read(fd, &new_id_be, 8) == 8) {
+                        char buf[64];
+                        snprintf(buf, sizeof(buf), "%lu\n", be64toh(new_id_be));
+                        print_str(buf);
+                    }
+                }
+                break;
+            case OPCODE_REMOVE: break;
+            case OPCODE_COMBINE: break;
             default: write_line("Réponse OK mais opcode inconnu.");
         }
     } else {
@@ -93,4 +142,36 @@ int read_response(const char *pipes_dir, uint16_t original_opcode) {
 
     close(fd);
     return return_code;
+}
+
+
+
+int send_combine_request(const char *pipes_dir, uint16_t type, uint64_t id_dest, uint64_t id_src) {
+    char req_pipe_path[MAX_PATH_LEN];
+    snprintf(req_pipe_path, sizeof(req_pipe_path), "%s/erraid-request-pipe", pipes_dir);
+
+    int fd = open(req_pipe_path, O_WRONLY);
+    if (fd == -1) {
+        write_error("Erreur: Impossible d'ouvrir le tube de requête (Combine)\n");
+        return -1;
+    }
+
+    //Opcode
+    uint16_t op_be = htobe16(OPCODE_COMBINE);
+    write(fd, &op_be, 2);
+
+    //TYPE
+    uint16_t type_be = htobe16(type);
+    write(fd, &type_be, 2);
+
+    //ID Destination
+    uint64_t dest_be = htobe64(id_dest);
+    write(fd, &dest_be, 8);
+
+    //ID Source
+    uint64_t src_be = htobe64(id_src);
+    write(fd, &src_be, 8);
+
+    close(fd);
+    return 0;
 }

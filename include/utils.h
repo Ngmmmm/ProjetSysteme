@@ -5,15 +5,7 @@
 
 
 
-// Opcodes pour les requêtes (Client -> Démon)
-#define OPCODE_LIST            0x4c53 // 'LS'
-#define OPCODE_CREATE          0x4352 // 'CR'
-#define OPCODE_COMBINE         0x4342 // 'CB'
-#define OPCODE_REMOVE          0x524d // 'RM'
-#define OPCODE_TIMES_EXITCODES 0x5458 // 'TX'
-#define OPCODE_STDOUT          0x534f // 'SO'
-#define OPCODE_STDERR          0x5345 // 'SE'
-#define OPCODE_TERMINATE       0x4b49 // 'TM'
+
 
 // Codes de réponse (Démon -> Client) 
 #define ANSTYPE_OK             0x4f4b // 'OK'
@@ -33,6 +25,9 @@
 #define FILE_TYPE_PL 0x504c // 'PL'
 #define FILE_TYPE_IF 0x4946 // 'IF'
 
+#define FILE_TYPE_PL 0x504C // 'PL' 
+#define FILE_TYPE_IF 0x4946 // 'IF'
+
 
 /**
  * Écrit une chaîne suivie d'un retour à la ligne sur la sortie standard (stdout).
@@ -47,7 +42,7 @@ void print_str(const char *str);
  */
 void write_error(const char *prefix);
 
-// Nouvelles fonctions de lecture (big-endian)
+// Fonctions de lecture (big-endian)
 int read_u16_be(int fd, uint16_t *val);
 int read_u32_be(int fd, uint32_t *val);
 int read_u64_be(int fd, uint64_t *val);

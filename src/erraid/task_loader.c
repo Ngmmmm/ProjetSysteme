@@ -308,3 +308,89 @@ struct task *load_all_tasks(size_t *task_count) {
     *task_count = count;
     return task_array;
 }
+
+int recursive_rmdir(const char *path) {
+    DIR *d = opendir(path);
+    if (!d) return -1;
+
+    struct dirent *p;
+    while ((p = readdir(d))) {
+        // On ignore . et .. 
+        if (!strcmp(p->d_name, ".") || !strcmp(p->d_name, "..")) continue;
+
+        char buf[MAX_PATH_LEN];
+        snprintf(buf, sizeof(buf), "%s/%s", path, p->d_name);
+
+        struct stat statbuf;
+        if (lstat(buf, &statbuf) == -1) continue;
+
+        if (S_ISDIR(statbuf.st_mode)) {
+            recursive_rmdir(buf); 
+        } else {
+            unlink(buf); 
+        }
+    }
+    closedir(d);
+    return rmdir(path);
+}
+
+int delete_task_from_disk(uint64_t id) {
+    char path[MAX_PATH_LEN];
+    snprintf(path, MAX_PATH_LEN, "%s/tasks/%lu", g_root_dir, id);
+    
+    return recursive_rmdir(path);
+}
+
+// Sauvegarde une structure task complète sur le disque
+int save_task_to_disk(struct task *t) {
+    char base_path[MAX_PATH_LEN];
+    char path[MAX_PATH_LEN];
+    
+    // Création du dossier racine de la tâche (tasks/ID)
+    snprintf(base_path, MAX_PATH_LEN, "%s/tasks/%lu", g_root_dir, t->taskid);
+    if (mkdir(base_path, 0755) == -1 && errno != EEXIST) return -1;
+    
+    // Création du dossier cmd
+    snprintf(path, MAX_PATH_LEN, "%s/cmd", base_path);
+    if (mkdir(path, 0755) == -1 && errno != EEXIST) return -1;
+
+    // Ecriture du fichier 'timing'
+    snprintf(path, MAX_PATH_LEN, "%s/timing", base_path);
+    int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd == -1) return -1;
+
+    uint64_t min_be = htobe64(t->timing.minutes);
+    uint32_t hour_be = htobe32(t->timing.hours);
+    
+    write(fd, &min_be, 8);
+    write(fd, &hour_be, 4);
+    write(fd, &t->timing.daysofweek, 1);
+    close(fd);
+
+    // Ecriture de la Commande
+
+    struct command *cmd = t->command;
+    if (strcmp(cmd->type, "SI") == 0) {
+        snprintf(path, MAX_PATH_LEN, "%s/cmd/type", base_path);
+        fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        uint16_t type = htobe16(FILE_TYPE_SI); 
+        write(fd, &type, 2);
+        close(fd);
+
+        snprintf(path, MAX_PATH_LEN, "%s/cmd/argv", base_path);
+        fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        
+        uint32_t argc_be = htobe32(cmd->argc);
+        write(fd, &argc_be, 4);
+        
+        for(int i=0; i<cmd->argc; i++) {
+            uint32_t len = strlen(cmd->argv[i]);
+            uint32_t len_be = htobe32(len);
+            write(fd, &len_be, 4);
+            write(fd, cmd->argv[i], len);
+        }
+        close(fd);
+    }
+    // Pour SQ PL IF A FAIRE PLUS TARD
+    return 0;
+}

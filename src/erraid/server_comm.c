@@ -116,8 +116,10 @@ void write_command_to_fd(int fd, struct command *cmd) {
         }
 
     // Séquence de commandes SQ
-    } else if (strcmp(cmd->type, "SQ") == 0) {
-        write(fd, "SQ", 2);
+    } else if ( strcmp(cmd->type, "SQ") == 0 || 
+                strcmp(cmd->type, "PL") == 0 || 
+                strcmp(cmd->type, "IF") == 0) {
+        write(fd, cmd->type, 2);
         // Écriture du nombre de sous-commandes (big-endian)
         uint32_t sub_be = htobe32((uint32_t)cmd->subcount);
         write(fd, &sub_be, sizeof(sub_be));
@@ -296,6 +298,7 @@ void handle_client_request(int req_fd, struct task **tasks_ptr, size_t *count_pt
         if (read(req_fd, &id1_be, 8) != 8) { close(rep_fd); return; }
         if (read(req_fd, &id2_be, 8) != 8) { close(rep_fd); return; }
         
+        uint16_t type_comb = be16toh(type_be);
         uint64_t id1 = be64toh(id1_be);
         uint64_t id2 = be64toh(id2_be);
 
@@ -360,16 +363,26 @@ void handle_client_request(int req_fd, struct task **tasks_ptr, size_t *count_pt
         char src_path[MAX_PATH_LEN];
         char dst_path[MAX_PATH_LEN];
 
-        // Déplacement de la tâche source 1 vers l'index 0
-        snprintf(src_path, MAX_PATH_LEN, "%s/tasks/%lu/cmd", g_root_dir, id1);
-        snprintf(dst_path, MAX_PATH_LEN, "%s/0", new_cmd_dir);
-        rename(src_path, dst_path);
+        if (type_comb == FILE_TYPE_PL || type_comb == FILE_TYPE_IF) {
+            // PL : On inverse pour avoir [0]=SRC, [1]=DST
+            snprintf(src_path, MAX_PATH_LEN, "%s/tasks/%lu/cmd", g_root_dir, id2); // SRC
+            snprintf(dst_path, MAX_PATH_LEN, "%s/0", new_cmd_dir);
+            rename(src_path, dst_path);
 
-        // Déplacement de la tâche source 2 vers l'index 1
-        snprintf(src_path, MAX_PATH_LEN, "%s/tasks/%lu/cmd", g_root_dir, id2);
-        snprintf(dst_path, MAX_PATH_LEN, "%s/1", new_cmd_dir);
-        rename(src_path, dst_path);
+            snprintf(src_path, MAX_PATH_LEN, "%s/tasks/%lu/cmd", g_root_dir, id1); // DST
+            snprintf(dst_path, MAX_PATH_LEN, "%s/1", new_cmd_dir);
+            rename(src_path, dst_path);
+        }else{
+            // Déplacement de la tâche source 1 vers l'index 0
+            snprintf(src_path, MAX_PATH_LEN, "%s/tasks/%lu/cmd", g_root_dir, id1);
+            snprintf(dst_path, MAX_PATH_LEN, "%s/0", new_cmd_dir);
+            rename(src_path, dst_path);
 
+            // Déplacement de la tâche source 2 vers l'index 1
+            snprintf(src_path, MAX_PATH_LEN, "%s/tasks/%lu/cmd", g_root_dir, id2);
+            snprintf(dst_path, MAX_PATH_LEN, "%s/1", new_cmd_dir);
+            rename(src_path, dst_path);
+        }
         // Suppression des anciennes tâches
         // Comme le dossier 'cmd' a été déplacé, delete_task_from_disk supprimera
         // le dossier racine (tasks/ID) et les fichiers restants (timing, stdout...).

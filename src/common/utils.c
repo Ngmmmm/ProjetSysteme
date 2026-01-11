@@ -170,23 +170,24 @@ void serialize_command_to_buffer(struct command *cmd, char *buffer, size_t size)
         }
 
         //  Branche ELSE (CMD3) 
-        if (cmd->subcount > 2) {
-
+        if (cmd->subcount > 2 && cmd->subcommands[2].type[0] != '\0') {
             if (!is_complex(&cmd->subcommands[1])) {
                 strncat(buffer, " ;", size - strlen(buffer) - 1);
             }
-            
             strncat(buffer, " else ", size - strlen(buffer) - 1);
             serialize_command_to_buffer(&cmd->subcommands[2], buffer, size);
+         
         }
 
 
-        struct command *last_cmd = (cmd->subcount > 2) ? &cmd->subcommands[2] : &cmd->subcommands[1];
+        struct command *last_cmd = (cmd->subcount > 2 && cmd->subcommands[2].type[0] != '\0') ? &cmd->subcommands[2] : &cmd->subcommands[1];
         if (!is_complex(last_cmd)) {
             strncat(buffer, " ;", size - strlen(buffer) - 1);
         }
 
         strncat(buffer, " fi", size - strlen(buffer) - 1);
+    }else {
+        strncat(buffer, "???", size - strlen(buffer) - 1);
     }
 }
 

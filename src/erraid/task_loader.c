@@ -140,6 +140,10 @@ struct command *parse_command(const char *cmd_path) {
         strcpy(cmd->type, "SI");
     } else if (type_from_file == FILE_TYPE_SQ) {
         strcpy(cmd->type, "SQ");
+    } else if (type_from_file == FILE_TYPE_PL) {
+        strcpy(cmd->type, "PL");
+    } else if (type_from_file == FILE_TYPE_IF) {
+        strcpy(cmd->type, "IF");
     } else {
         free(cmd); 
         return NULL;
@@ -172,7 +176,7 @@ struct command *parse_command(const char *cmd_path) {
         cmd->argv[cmd->argc] = NULL;
         close(fd);
 
-    } else if (strcmp(cmd->type, "SQ") == 0) {
+    } else if (strcmp(cmd->type, "SQ") == 0 || strcmp(cmd->type, "PL") == 0 || strcmp(cmd->type, "IF") == 0) {
         DIR *d = opendir(cmd_path);
         if (!d) { free(cmd); return NULL; }
 

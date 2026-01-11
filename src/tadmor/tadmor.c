@@ -53,6 +53,7 @@ int main(int argc, char *argv[]) {
     uint64_t target_task_id = 0;
     uint16_t combine_type = FILE_TYPE_SQ;
 
+    int flag_no_schedule = 0;
     uint64_t tm_min = 0xFFFFFFFFFFFFFFFF;
     uint32_t tm_hour = 0xFFFFFFFF;
     uint8_t tm_day = 0xFF;
@@ -66,7 +67,7 @@ int main(int argc, char *argv[]) {
     // "l" ne prend pas d'argument
     // "x:", "o:", "e:", "P:" prennent un argument (indiqué par le :)
     //ajout des nouveaux arguments r c m h d k
-    while ((opt = getopt(argc, argv, "lx:o:e:P:r:cm:H:d:p:s:i:")) != -1) {
+    while ((opt = getopt(argc, argv, "lx:o:e:P:r:cm:H:d:p:s:i:n")) != -1) {
         switch (opt) {
             case 'l':
                 action = ACTION_LIST;
@@ -87,7 +88,7 @@ int main(int argc, char *argv[]) {
                 target_task_id = strtoull(optarg, NULL, 10);
                 break;
 
-            case 'p':
+            case 'P':
                 // L'utilisateur force un autre chemin pour les pipes
                 strncpy(pipes_directory, optarg, MAX_PATH_LEN - 1);
                 pipes_directory[MAX_PATH_LEN - 1] = '\0'; // Sécurité
@@ -101,6 +102,10 @@ int main(int argc, char *argv[]) {
             case 'c': // Create
                 action = ACTION_CREATE; 
                 break;
+
+            case 'n':
+            flag_no_schedule = 1;
+            break;
 
             case 'm':
                 int val1 = atoi(optarg);
@@ -124,7 +129,7 @@ int main(int argc, char *argv[]) {
                 target_task_id = strtoull(optarg, NULL, 10);
                 break;
 
-            case 'P': // Pipeline
+            case 'p': // Pipeline
                 action = ACTION_COMBINE;
                 combine_type = FILE_TYPE_PL;
                 target_task_id = strtoull(optarg, NULL, 10);
@@ -148,7 +153,12 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-
+    if (flag_no_schedule) {
+    
+    tm_min = 0;
+    tm_hour = 0;
+    tm_day = 0;
+    }
     if (action == ACTION_CREATE) {
         int cmd_argc = argc - optind;
         char **cmd_argv = &argv[optind];

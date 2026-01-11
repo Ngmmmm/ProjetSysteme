@@ -1,15 +1,23 @@
+#ifndef ERRAID_H 
 #define ERRAID_H
 
-#include <stdlib.h>    // getenv
-#include <unistd.h>    // write, STDOUT_FILENO, STDERR_FILENO
 #include <stdint.h>
 #include <time.h>
 
 #define MAX_PATH_LEN 1024
 
-// Signatures binaires pour les types de commandes (utilisées dans parse_command)
-#define FILE_TYPE_SI 0x5349 // 'SI' 
-#define FILE_TYPE_SQ 0x5351 // 'SQ' 
+
+// Opcodes pour les requêtes (Client -> Démon)
+#define OPCODE_LIST             0x4C53 // 'LS'
+#define OPCODE_CREATE           0x4352 // 'CR'
+#define OPCODE_REMOVE           0x524D // 'RM'
+#define OPCODE_TERMINATE        0x544D // 'TM' 0x4b49 KI ? 
+#define OPCODE_TIMES_EXITCODES  0x5458 // 'TX'
+#define OPCODE_STDOUT           0x534F // 'SO'
+#define OPCODE_STDERR           0x5345 // 'SE'
+#define OPCODE_COMBINE          0x4342 // 'CB'
+
+
 
 /**
  * Structure de planification lue depuis le fichier 'timing'.
@@ -28,11 +36,11 @@ struct timing {
 struct command {
     char type[3]; // "SI" ou "SQ"
 
-    // --- Pour le type "SI" ---
+    // Pour le type "SI"
     int argc;     
     char **argv;  
 
-    // --- Pour le type "SQ" ---
+    // Pour le type "SQ"
     struct command *subcommands; 
     size_t subcount;             
 };
@@ -46,28 +54,4 @@ struct task {
     struct command *command;
 };
 
-int is_directory(const char *path);
-
-void free_command(struct command *cmd);
-
-void free_command_contents(struct command *cmd);
-
-char *read_string_from_fd(int fd);
-
-struct command *parse_command(const char *cmd_path);
-
-int parse_timing(const char *task_path, struct timing *task_timing);
-
-int compare_tasks(const void *a, const void *b);
-
-struct task *load_all_tasks(size_t *task_count);
-
-int execute_simple_command_in_terminal(struct command *cmd, uint64_t taskid);
-
-int execute_sequence_command_in_terminal(struct command *cmd, uint64_t taskid);
-
-int execute_command_in_terminal(struct command *cmd, uint64_t taskid);
-
-int is_time_to_run(struct task *t, struct tm *now);
-
-void log_execution(uint64_t taskid, int exit_code);
+#endif

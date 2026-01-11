@@ -11,7 +11,7 @@
 #define OPCODE_LIST             0x4C53 // 'LS'
 #define OPCODE_CREATE           0x4352 // 'CR'
 #define OPCODE_REMOVE           0x524D // 'RM'
-#define OPCODE_TERMINATE        0x544D // 'TM'
+#define OPCODE_TERMINATE        0x544D // 'TM' 0x4b49 KI ? 
 #define OPCODE_TIMES_EXITCODES  0x5458 // 'TX'
 #define OPCODE_STDOUT           0x534F // 'SO'
 #define OPCODE_STDERR           0x5345 // 'SE'
